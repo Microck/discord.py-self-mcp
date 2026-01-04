@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/SAwaris/discord-logo/master/discord-logo-white.png" alt="discord-selfbot-mcp" width="100">
+  <img src="https://cdn.icon-icons.com/icons2/2108/PNG/512/discord_icon_130958.png" alt="discord-selfbot-mcp" width="100">
 </p>
 
 <h1 align="center">discord-selfbot-mcp</h1>
