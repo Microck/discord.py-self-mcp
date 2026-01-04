@@ -72,6 +72,7 @@ npm install -g discord-selfbot-mcp
 | manage friends | ✅ | ❌ | ❌ | ❌ |
 | manage threads | ✅ | ❌ | ❌ | ❌ |
 | setup wizard | ✅ | ❌ | ❌ | ❌ |
+| **total tools** | **60** | **7** | **29** | **4** |
 
 ### usage
 
