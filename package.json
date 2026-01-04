@@ -1,6 +1,6 @@
 {
   "name": "discord-selfbot-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Comprehensive Discord Selfbot MCP Server with 50+ tools for full Discord user functionality",
   "type": "module",
   "main": "dist/index.js",
