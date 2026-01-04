@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+run-test.bat
+run-test.mjs
+test-*.mjs

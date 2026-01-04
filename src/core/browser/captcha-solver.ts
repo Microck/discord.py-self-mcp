@@ -43,13 +43,16 @@ export async function solveCaptchaInBrowser(
   try {
     await mkdir(USER_DATA_DIR, { recursive: true });
     
-    logger.info('Launching browser for captcha solving...');
+    logger.warn('>>> CLOSE DISCORD APP BEFORE CONTINUING (prevents protocol hijack) <<<');
+    
+    logger.info('Launching browser for manual captcha solving...');
     
     browser = await chromium.launch({
       headless: false,
       args: [
         '--disable-blink-features=AutomationControlled',
         '--no-default-browser-check',
+        '--disable-features=ExternalProtocolDialog',
       ],
     });
     
@@ -63,18 +66,20 @@ export async function solveCaptchaInBrowser(
     
     const page = await context.newPage();
     
-    await page.addInitScript((discordToken) => {
-      const stored = localStorage.getItem('token');
-      if (!stored || stored === 'null' || stored === '""' || stored === 'undefined') {
-        localStorage.setItem('token', JSON.stringify(discordToken));
-      }
+    logger.info('Navigating to Discord login to inject token...');
+    await page.goto('https://discord.com/login', { waitUntil: 'networkidle' });
+    
+    await page.evaluate((discordToken) => {
+      localStorage.setItem('token', JSON.stringify(discordToken));
     }, token);
+    
+    logger.info('Token injected. Navigating to invite...');
     
     const inviteUrl = `https://discord.com/invite/${inviteCode}`;
     logger.info(`Opening: ${inviteUrl}`);
-    logger.info('>>> SOLVE THE CAPTCHA AND CLICK "Accept Invite" <<<');
+    logger.warn('>>> SOLVE THE CAPTCHA AND CLICK "Accept Invite" IN THE BROWSER <<<');
     
-    await page.goto(inviteUrl, { waitUntil: 'domcontentloaded' });
+    await page.goto(inviteUrl, { waitUntil: 'networkidle' });
     
     const initialGuildIds = new Set(client.guilds.cache.keys());
     
