@@ -59,15 +59,21 @@ npm install -g discord-selfbot-mcp
 | feature | discord-selfbot-mcp | Maol-1997 | codebyyassine | elyxlz |
 |---------|---------------------|-----------|---------------|--------|
 | **core** | | | | |
-| read / send messages | ✅ | ✅ | ✅ | ✅ |
-| list guilds / channels | ✅ | ✅ | ✅ | ✅ |
+| read messages | ✅ | ✅ | ✅ | ✅ |
+| send messages | ✅ | ✅ | ✅ | ✅ |
+| list guilds | ✅ | ✅ | ✅ | ✅ |
+| list channels | ✅ | ✅ | ✅ | ✅ |
+| get user info | ✅ | ✅ | ✅ | ❌ |
 | **advanced** | | | | |
-| **search messages** | ✅ | ❌ | ❌ | ❌ |
-| **create / delete channels** | ✅ | ❌ | ✅ | ❌ |
-| **voice / audio** | ✅ | ❌ | ❌ | ❌ |
-| **friends / blocking** | ✅ | ❌ | ❌ | ❌ |
-| **threads / pins** | ✅ | ❌ | ❌ | ❌ |
-| **setup wizard** | ✅ | ❌ | ❌ | ❌ |
+| search messages | ✅ | ❌ | ❌ | ❌ |
+| create channels | ✅ | ❌ | ✅ | ❌ |
+| delete channels | ✅ | ❌ | ✅ | ❌ |
+| edit messages | ✅ | ❌ | ❌ | ❌ |
+| delete messages | ✅ | ❌ | ❌ | ❌ |
+| join voice | ✅ | ❌ | ❌ | ❌ |
+| manage friends | ✅ | ❌ | ❌ | ❌ |
+| manage threads | ✅ | ❌ | ❌ | ❌ |
+| setup wizard | ✅ | ❌ | ❌ | ❌ |
 
 ### usage
 
