@@ -99,6 +99,32 @@ configure in claude/opencode:
 }
 ```
 
+### captcha solving
+
+discord may require captcha when joining servers. configure auto-solve:
+
+```json
+{
+  "mcpServers": {
+    "discord-selfbot": {
+      "command": "npx",
+      "args": ["discord-selfbot-mcp"],
+      "env": {
+        "DISCORD_TOKEN": "your_token",
+        "CAPTCHA_SERVICE": "capsolver",
+        "CAPTCHA_API_KEY": "your_api_key"
+      }
+    }
+  }
+}
+```
+
+| service | env value | pricing | signup |
+|---------|-----------|---------|--------|
+| CapSolver | `capsolver` | ~$0.80/1k | [capsolver.com](https://capsolver.com) |
+| CapMonster | `capmonster` | ~$0.70/1k | [capmonster.cloud](https://capmonster.cloud) |
+| NopeCHA | `nopecha` | 100 free/day | [nopecha.com](https://nopecha.com) |
+
 ### project structure
 
 ```bash
@@ -133,7 +159,7 @@ src/
 | **token invalid** | run `npx discord-selfbot-mcp-setup` to extract a fresh one |
 | **rate limited** | reduce `RATE_LIMIT_CONCURRENCY` env var (default: 3) |
 | **missing permissions** | ensure account has access to the guild/channel |
-| **verification required** | solve captcha/2fa in browser during setup |
+| **captcha required** | configure `CAPTCHA_SERVICE` and `CAPTCHA_API_KEY` (see above) |
 
 ### license
 

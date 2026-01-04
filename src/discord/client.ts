@@ -3,6 +3,7 @@ import type { Config } from '../core/config.js';
 import { getLogger } from '../core/logger.js';
 import { RateLimiter } from '../core/rateLimit/index.js';
 import { mapDiscordError, type McpError } from '../core/errors/index.js';
+import { createCaptchaSolver } from '../core/captcha/solver.js';
 
 export interface DiscordContext {
   client: Client;
@@ -22,8 +23,12 @@ export async function initDiscordClient(config: Config): Promise<DiscordContext>
     return context;
   }
 
+  const captchaSolver = createCaptchaSolver(config);
+
   const client = new Client({
     checkUpdate: false,
+    captchaSolver,
+    captchaRetryLimit: config.captchaRetryLimit,
   } as Record<string, unknown>);
 
   const rateLimiter = new RateLimiter(config.rateLimitConcurrency);

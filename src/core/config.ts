@@ -11,6 +11,9 @@ const configSchema = z.object({
   allowVoice: z.boolean().default(true),
   redactContent: z.boolean().default(false),
   allowedGuilds: z.array(z.string()).optional(),
+  captchaService: z.enum(['capsolver', 'capmonster', 'nopecha', 'none']).default('none'),
+  captchaApiKey: z.string().optional(),
+  captchaRetryLimit: z.number().default(3),
 });
 
 export type Config = z.infer<typeof configSchema>;
@@ -27,6 +30,9 @@ export function loadConfig(): Config {
     allowVoice: process.env.ALLOW_VOICE !== 'false',
     redactContent: process.env.REDACT_CONTENT === 'true',
     allowedGuilds: process.env.ALLOWED_GUILDS?.split(',').filter(Boolean),
+    captchaService: process.env.CAPTCHA_SERVICE ?? 'none',
+    captchaApiKey: process.env.CAPTCHA_API_KEY,
+    captchaRetryLimit: parseInt(process.env.CAPTCHA_RETRY_LIMIT ?? '3', 10),
   };
 
   return configSchema.parse(raw);

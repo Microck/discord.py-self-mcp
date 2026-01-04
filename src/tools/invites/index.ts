@@ -2,23 +2,10 @@ import { z } from 'zod';
 import { createTool, success, failure, registerToolGroup } from '../../mcp/registry.js';
 import { formatGuild } from '../../core/formatting/index.js';
 import { forbiddenError, notFoundError } from '../../core/errors/index.js';
-import { solveCaptchaInBrowser } from '../../core/browser/index.js';
-
-const CAPTCHA_ERROR_PATTERNS = [
-  'CAPTCHA',
-  'captcha',
-  'You need to update your app',
-  'verify',
-];
-
-function isCaptchaError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return CAPTCHA_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
-}
 
 const acceptInviteTool = createTool(
   'accept_invite',
-  'Join a server using an invite code',
+  'Join a server using an invite code. If captcha is required, it will be solved automatically if CAPTCHA_SERVICE and CAPTCHA_API_KEY are configured.',
   z.object({
     invite_code: z.string().describe('The invite code (e.g. "discord.gg/code" or just "code")'),
   }),
@@ -47,33 +34,15 @@ const acceptInviteTool = createTool(
         return failure(notFoundError('Invite', code));
       }
       
-      if (isCaptchaError(error)) {
-        const result = await solveCaptchaInBrowser({
-          inviteCode: code,
-          client: ctx.client,
-          token: ctx.config.discordToken,
-          timeoutMs: 300000,
-        });
-        
-        if (result.success && result.guildId) {
-          const guild = ctx.client.guilds.cache.get(result.guildId);
-          if (guild) {
-            return success({
-              guild: formatGuild(guild),
-              message: `Joined guild: ${result.guildName} (via browser captcha)`,
-            });
-          }
-          return success({
-            guildId: result.guildId,
-            guildName: result.guildName,
-            message: `Joined guild: ${result.guildName} (via browser captcha)`,
-          });
-        }
-        
-        return failure(forbiddenError(result.error ?? 'Captcha solving failed'));
+      const message = error instanceof Error ? error.message : String(error);
+      
+      if (message.includes('captcha') || message.includes('CAPTCHA')) {
+        return failure(forbiddenError(
+          'Captcha required. Configure CAPTCHA_SERVICE (capsolver/capmonster/nopecha) and CAPTCHA_API_KEY to auto-solve.'
+        ));
       }
       
-      return failure(forbiddenError(`Failed to accept invite: ${error}`));
+      return failure(forbiddenError(`Failed to accept invite: ${message}`));
     }
   }
 );
