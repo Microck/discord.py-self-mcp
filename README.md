@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://cdn.icon-icons.com/icons2/2108/PNG/512/discord_icon_130958.png" alt="discord-selfbot-mcp" width="100">
+  <img src="./logo.png" alt="discord-selfbot-mcp" width="100">
 </p>
 
 <h1 align="center">discord-selfbot-mcp</h1>
@@ -53,6 +53,18 @@ npm install -g discord-selfbot-mcp
 | **profile** | 1 | edit_profile (avatar, bio, username) |
 | **interactions** | 1 | trigger_typing |
 | **invites** | 1 | accept_invite |
+
+### comparison
+
+| feature | discord-selfbot-mcp | Maol-1997 | codebyyassine | elyxlz |
+|---------|---------------------|-----------|---------------|--------|
+| **tools count** | **60+** | ~8 | ~29 | ~5 |
+| **voice support** | ✅ | ❌ | ❌ | ❌ |
+| **thread support** | ✅ | ❌ | ❌ | ❌ |
+| **friend/block** | ✅ | ❌ | ❌ | ❌ |
+| **safety gates** | ✅ | ❌ | ❌ | ❌ |
+| **auto setup** | ✅ | ❌ | ❌ | ❌ |
+| **language** | typescript | typescript | javascript | python |
 
 ### usage
 
