@@ -25,7 +25,21 @@ The most comprehensive Discord Selfbot MCP (Model Context Protocol) server. 50+ 
 | **Files** | 3 | upload, download, list_attachments |
 | **Events** | 4 | list, get, rsvp, create |
 
-## Installation
+## Quick Start (Auto Setup)
+
+We provide a setup wizard that automatically extracts your token from Discord web login:
+
+```bash
+npx discord-selfbot-mcp-setup
+```
+
+This will:
+1. Open a browser window
+2. Let you log in to Discord
+3. Automatically grab your token
+4. Configure Claude Desktop or Cursor for you
+
+## Manual Installation
 
 ```bash
 npm install -g discord-selfbot-mcp
