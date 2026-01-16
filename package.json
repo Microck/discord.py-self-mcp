@@ -1,7 +1,7 @@
 {
   "name": "discord-selfbot-mcp",
   "version": "1.0.1",
-  "description": "Comprehensive Discord Selfbot MCP Server with 64 tools for bot testing, slash commands, buttons, and full Discord user functionality",
+  "description": "Comprehensive Discord Selfbot MCP Server with 80 tools for bot testing, slash commands, buttons, and full Discord user functionality",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
