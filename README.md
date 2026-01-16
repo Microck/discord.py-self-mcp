@@ -18,6 +18,18 @@
 
 ### installation
 
+**Codex**  
+Tell Codex:  
+Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord-selfbot-mcp/refs/heads/master/.codex/INSTALL.md
+
+**OpenCode**  
+Tell OpenCode:  
+Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord-selfbot-mcp/refs/heads/master/.opencode/INSTALL.md
+
+---
+
+### manual installation
+
 **one-liner** (recommended for AI terminals):
 
 ```bash
