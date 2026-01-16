@@ -16,24 +16,24 @@
 
 ---
 
-### installation
+## installation
 
-**Codex**  
-Tell Codex:  
+**note:** installation is streamlined for ai-native environments.
+
+### codex
+
+tell codex:
+
+```
 Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord-selfbot-mcp/refs/heads/master/.codex/INSTALL.md
+```
 
-**OpenCode**  
-Tell OpenCode:  
+### opencode
+
+tell opencode:
+
+```
 Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord-selfbot-mcp/refs/heads/master/.opencode/INSTALL.md
-
----
-
-### manual installation
-
-**one-liner** (recommended for AI terminals):
-
-```bash
-npx discord-selfbot-mcp-setup
 ```
 
 ---
