@@ -23,22 +23,22 @@ npx discord-selfbot-mcp-setup
 
 ### 3. configure opencode
 
-if the wizard didn't auto-save to your global config, add the following to your `~/.config/opencode/opencode.json` (or your project's `.opencode.json`) under the `mcp` object:
+if the wizard didn't auto-save to your global config, add the following to your `~/.config/opencode/opencode.json` (or your project's `.opencode.json`) file under the `"mcp"` key:
 
 ```json
-{
-  "mcp": {
-    "discord-selfbot": {
-      "command": ["npx", "discord-selfbot-mcp"],
-      "enabled": true,
-      "type": "local",
-      "environment": {
-        "DISCORD_TOKEN": "your_discord_token_here"
-      }
-    }
+"discord-selfbot": {
+  "type": "local",
+  "command": [
+    "npx",
+    "discord-selfbot-mcp"
+  ],
+  "enabled": true,
+  "environment": {
+    "DISCORD_TOKEN": "your_discord_token_here"
   }
 }
 ```
+
 
 ### 4. restart opencode
 

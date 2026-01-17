@@ -23,21 +23,22 @@ npx discord-selfbot-mcp-setup
 
 ### 3. configure codex
 
-add the following to your codex mcp configuration:
+add the following to your `~/.config/opencode/opencode.json` file under the `"mcp"` key:
 
 ```json
-{
-  "mcpServers": {
-    "discord-selfbot": {
-      "command": "npx",
-      "args": ["discord-selfbot-mcp"],
-      "env": {
-        "DISCORD_TOKEN": "your_discord_token_here"
-      }
-    }
+"discord-selfbot": {
+  "type": "local",
+  "command": [
+    "npx",
+    "discord-selfbot-mcp"
+  ],
+  "enabled": true,
+  "environment": {
+    "DISCORD_TOKEN": "your_discord_token_here"
   }
 }
 ```
+
 
 ### 4. restart codex
 
