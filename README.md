@@ -129,16 +129,12 @@ powered by the robust `discord.py-self` library.
 | click buttons | ✅ | ❌ | ❌ | ❌ |
 | select menus | ✅ | ❌ | ❌ | ❌ |
 | setup wizard | ✅ | ❌ | ❌ | ❌ |
-| captcha fallback | ⚠️ | ❌ | ❌ | ❌ |
-| kick/ban | ✅ | ❌ | ❌ | ❌ |
-| invites | ✅ | ❌ | ❌ | ❌ |
-| profile edit | ✅ | ❌ | ❌ | ❌ |
 
 **legend**:
 ✅ = supported
 ❌ = not supported
 🚧 = planned / in progress
-⚠️ = partial support (browser fallback)
+
 
 ---
 
