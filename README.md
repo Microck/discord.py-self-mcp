@@ -96,12 +96,13 @@ powered by the robust `discord.py-self` library.
 | category | tools | description |
 |----------|-------|-------------|
 | **system** | 2 | get_user_info, list_guilds |
-| **messages** | 2 | send_message, read_messages |
+| **messages** | 5 | send_message, read_messages, search_messages, edit_message, delete_message |
 | **channels** | 2 | create_channel, delete_channel |
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, add_friend, remove_friend, send_friend_request |
 | **presence** | 2 | set_status, set_activity |
-| **interactions** | 2 | send_slash_command, click_button |
+| **interactions** | 3 | send_slash_command, click_button, select_menu |
+| **threads** | 2 | create_thread, archive_thread |
 
 ### comparison
 
@@ -112,17 +113,17 @@ powered by the robust `discord.py-self` library.
 | list guilds | ✅ | ✅ | ✅ | ✅ |
 | list channels | ✅ | ✅ | ✅ | ✅ |
 | get user info | ✅ | ✅ | ✅ | ❌ |
-| search messages | 🚧 | ❌ | ❌ | ❌ |
+| search messages | ✅ | ❌ | ❌ | ❌ |
 | create channels | ✅ | ❌ | ✅ | ❌ |
 | delete channels | ✅ | ❌ | ✅ | ❌ |
-| edit messages | 🚧 | ❌ | ❌ | ❌ |
-| delete messages | 🚧 | ❌ | ❌ | ❌ |
+| edit messages | ✅ | ❌ | ❌ | ❌ |
+| delete messages | ✅ | ❌ | ❌ | ❌ |
 | join voice | ✅ | ❌ | ❌ | ❌ |
 | manage friends | ✅ | ❌ | ❌ | ❌ |
-| manage threads | 🚧 | ❌ | ❌ | ❌ |
+| manage threads | ✅ | ❌ | ❌ | ❌ |
 | slash commands | ✅ | ❌ | ❌ | ❌ |
 | click buttons | ✅ | ❌ | ❌ | ❌ |
-| select menus | 🚧 | ❌ | ❌ | ❌ |
+| select menus | ✅ | ❌ | ❌ | ❌ |
 | setup wizard | ✅ | ❌ | ❌ | ❌ |
 | captcha fallback | ⚠️ | ❌ | ❌ | ❌ |
 
@@ -160,6 +161,7 @@ discord_selfbot_mcp/
     ├── presence.py
     ├── registry.py
     ├── relationships.py
+    ├── threads.py
     └── voice.py
 ```
 

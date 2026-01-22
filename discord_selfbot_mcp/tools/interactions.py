@@ -105,3 +105,43 @@ async def click_button(arguments: dict):
         return [TextContent(type="text", text="Button not found")]
     except Exception as e:
         return [TextContent(type="text", text=f"Error clicking button: {str(e)}")]
+
+@registry.register(
+    name="select_menu",
+    description="Select an option in a menu",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel_id": {"type": "string"},
+            "message_id": {"type": "string"},
+            "custom_id": {"type": "string", "description": "Custom ID of the menu (optional)"},
+            "values": {"type": "array", "items": {"type": "string"}, "description": "Values to select"},
+            "row": {"type": "integer"},
+            "column": {"type": "integer"}
+        },
+        "required": ["channel_id", "message_id", "values"]
+    }
+)
+async def select_menu(arguments: dict):
+    try:
+        channel_id = int(arguments["channel_id"])
+        message_id = int(arguments["message_id"])
+        values = arguments["values"]
+        custom_id = arguments.get("custom_id")
+        
+        channel = client.get_channel(channel_id) or await client.fetch_channel(channel_id)
+        message = await channel.fetch_message(message_id)
+
+        for row_idx, action_row in enumerate(message.components):
+            for col_idx, component in enumerate(action_row.children):
+                if isinstance(component, discord.SelectMenu):
+                    if (custom_id and component.custom_id == custom_id) or \
+                       (arguments.get("row") == row_idx and arguments.get("column") == col_idx) or \
+                       (not custom_id and not arguments.get("row")): # Default to first menu if no specifier
+                        
+                        await component.choose(values)
+                        return [TextContent(type="text", text=f"Selected values {values} in menu")]
+
+        return [TextContent(type="text", text="Menu not found")]
+    except Exception as e:
+        return [TextContent(type="text", text=f"Error selecting menu: {str(e)}")]
