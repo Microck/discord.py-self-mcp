@@ -11,6 +11,12 @@
 </p>
 
 <p align="center">
+  <a href="opencodestudio://install-mcp?name=discord-py-self&cmd=uv%20tool%20run%20git%2Bhttps%3A%2F%2Fgithub.com%2FMicrock%2Fdiscord.py-self-mcp.git">
+    <img src="https://img.shields.io/badge/Add%20to-OpenCode-5865F2?style=for-the-badge&logo=opencode&logoColor=white" alt="Add to OpenCode" />
+  </a>
+</p>
+
+<p align="center">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
   <img src="https://img.shields.io/badge/language-python-blue" alt="language">
   <img src="https://img.shields.io/badge/mcp-sdk-orange" alt="mcp">
