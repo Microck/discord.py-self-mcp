@@ -35,6 +35,7 @@ Fetch and follow instructions from https://raw.githubusercontent.com/Microck/dis
 **prerequisites**:
 - python 3.10+
 - `uv` (recommended) or `pip`
+- **voice support (linux only)**: `libffi-dev` (or `libffi-devel`), `python-dev` (e.g. `python3-dev`)
 
 **install**:
 
@@ -43,6 +44,8 @@ uv tool install git+https://github.com/Microck/discord-py-self-mcp.git
 # or
 pip install git+https://github.com/Microck/discord-py-self-mcp.git
 ```
+
+> **note**: voice dependencies (PyNaCl) are included by default. on linux, ensure system packages are installed first.
 
 ---
 
@@ -147,6 +150,7 @@ powered by the robust `discord.py-self` library.
 | **missing dependencies** | ensure `uv` or `pip` installed all requirements (`discord.py-self`, `mcp`, `playwright`) |
 | **playwright error** | run `playwright install chromium` |
 | **audioop error** | ensure `audioop-lts` is installed if using python 3.13+ |
+| **voice error** | install `libffi-dev` (linux) or ensure PyNaCl built correctly |
 
 ---
 
