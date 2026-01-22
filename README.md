@@ -110,25 +110,28 @@ powered by the robust `discord.py-self` library.
 
 ### comparison
 
-| feature | discord-py-self-mcp | Maol-1997 | codebyyassine | elyxlz |
-|---------|---------------------|-----------|---------------|--------|
-| read messages | ✅ | ✅ | ✅ | ✅ |
-| send messages | ✅ | ✅ | ✅ | ✅ |
-| list guilds | ✅ | ✅ | ✅ | ✅ |
-| list channels | ✅ | ✅ | ✅ | ✅ |
-| get user info | ✅ | ✅ | ✅ | ❌ |
-| search messages | ✅ | ❌ | ❌ | ❌ |
-| create channels | ✅ | ❌ | ✅ | ❌ |
-| delete channels | ✅ | ❌ | ✅ | ❌ |
-| edit messages | ✅ | ❌ | ❌ | ❌ |
-| delete messages | ✅ | ❌ | ❌ | ❌ |
-| join voice | ✅ | ❌ | ❌ | ❌ |
-| manage friends | ✅ | ❌ | ❌ | ❌ |
-| manage threads | ✅ | ❌ | ❌ | ❌ |
-| slash commands | ✅ | ❌ | ❌ | ❌ |
-| click buttons | ✅ | ❌ | ❌ | ❌ |
-| select menus | ✅ | ❌ | ❌ | ❌ |
-| setup wizard | ✅ | ❌ | ❌ | ❌ |
+| Feature | discord-py-self-mcp | discord.py-self (Lib) | Maol-1997 | codebyyassine | elyxlz |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **read messages** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **send messages** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **list guilds** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **list channels** | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **get user info** | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **search messages** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **create channels** | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **delete channels** | ✅ | ✅ | ❌ | ✅ | ❌ |
+| **edit messages** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **delete messages** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **join voice** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **manage friends** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **manage threads** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **slash commands** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **click buttons** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **select menus** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **kick/ban** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **invites** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **profile edit** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **setup wizard** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 **legend**:
 ✅ = supported
