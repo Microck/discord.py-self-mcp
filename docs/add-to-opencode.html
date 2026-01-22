@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Redirecting to OpenCode Studio...</title>
+    <script>
+        // Redirect to the custom protocol
+        window.location.href = "opencodestudio://install-mcp?name=discord-py-self&cmd=uv%20tool%20install%20git%2Bhttps%3A%2F%2Fgithub.com%2FMicrock%2Fdiscord.py-self-mcp.git";
+        
+        // Fallback or instructions if it doesn't open
+        setTimeout(function() {
+            document.getElementById('message').innerHTML = "If OpenCode Studio didn't open, ensure it is installed.<br><br><a href='opencodestudio://install-mcp?name=discord-py-self&cmd=uv%20tool%20install%20git%2Bhttps%3A%2F%2Fgithub.com%2FMicrock%2Fdiscord.py-self-mcp.git'>Click here to try again</a>";
+        }, 1000);
+    </script>
+</head>
+<body>
+    <div id="message" style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+        Redirecting to OpenCode Studio...
+    </div>
+</body>
+</html>
