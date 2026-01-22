@@ -1,0 +1,4 @@
+discord.py-self==2.0.1
+mcp
+python-dotenv
+playwright
