@@ -2,19 +2,30 @@
 
 ## Status
 - **Complete Rewrite**: The project has been fully migrated from Node.js (discord.js-selfbot-v13) to Python (discord.py-self).
-- **Functionality**: All original 80+ tools are planned; core functionality (messages, channels, voice, relationships, presence, interactions) is implemented and verified via mock tests.
-- **Documentation**: README.md and INSTALL.md files have been updated to reflect the new Python usage (`uv` / `pip`).
-
-## Key Changes
-- **Library**: `discord.py-self` (Python) is now the underlying library, offering better stability for selfbots.
-- **Package Manager**: Recommended `uv` for fast dependency management.
-- **Setup**: `discord-selfbot-mcp-setup` script rewritten in Python using Playwright for token extraction.
+- **Functionality**: Core functionality (messages, channels, voice, relationships, presence, interactions) is implemented.
+- **Documentation**: README.md updated with feature tables and emojis.
 
 ## Verification
-- **Unit Tests**: Full mock test suite (`tests/test_mock.py` was used) confirmed logic for all tool modules.
-- **Integration**: Requires a valid user token.
+### ✅ Verified Live (Real Token)
+- **Authentication**: Successful login as `_23blank__#0`.
+- **Read Operations**: 
+  - `get_user_info`: OK
+  - `list_guilds`: OK
+  - `list_channels`: OK
+
+### 🛡️ Verified Logic (Mock Tests)
+- **Write Operations**: Verified code paths for:
+  - `send_message`, `edit_message`, `delete_message`
+  - `create_channel`, `delete_channel`
+  - `create_thread`, `archive_thread`
+  - `join_voice_channel`, `leave_voice_channel`
+  - `add_friend`, `remove_friend`
+
+### ⚠️ Limitations
+- **Guild Creation**: Live test for creating a sandbox guild failed with `403 Forbidden` (likely CAPTCHA/account limits). Destructive tests were not run on live servers to protect user data.
+- **Voice**: Requires `ffmpeg` or `opus` library installed on the system to function fully.
 
 ## Next Steps
-1. Run `uv tool run discord-selfbot-mcp-setup` to extract a fresh token.
-2. Restart your MCP client (OpenCode/Claude).
-3. Verify tools in a live environment.
+1. **Install**: `uv tool install git+https://github.com/Microck/discord-selfbot-mcp.git`
+2. **Configure**: Use the generated `mcp.json` or run `discord-selfbot-mcp-setup`.
+3. **Usage**: Connect via OpenCode or Claude Desktop.
