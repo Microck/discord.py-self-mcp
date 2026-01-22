@@ -20,14 +20,17 @@
 
 ### installation
 
-**Codex**  
-Tell Codex:  
+**codex**  
+tell codex:  
+```
 Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord-selfbot-mcp/refs/heads/master/.codex/INSTALL.md
+```
 
-**OpenCode**  
-Tell OpenCode:  
+**opencode**  
+tell opencode:  
+```
 Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord-selfbot-mcp/refs/heads/master/.opencode/INSTALL.md
-
+```
 ---
 
 ### manual installation
