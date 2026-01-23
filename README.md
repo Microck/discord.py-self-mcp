@@ -6,8 +6,6 @@
 
 <p align="center">
   comprehensive discord selfbot mcp server for full user autonomy.
-  <br>
-  powered by <a href="https://github.com/dolfies/discord.py-self">discord.py-self</a>.
 </p>
 
 <p align="center">
