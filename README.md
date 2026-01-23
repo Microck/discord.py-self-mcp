@@ -145,6 +145,7 @@ powered by the robust `discord.py-self` library.
 | **invites** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **profile edit** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **setup wizard** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **captcha solver** | ✅ | ❌ | ❌ | ❌ | ❌ |
 
 ✅ = supported
 
@@ -152,6 +153,29 @@ powered by the robust `discord.py-self` library.
 
 🚧 = planned / in progress
 
+
+---
+
+### captcha solving (experimental)
+
+automatically solves hCaptchas when encountered (e.g., joining servers, DMs).
+built upon [ScremerMemer/hCaptcha-Solver](https://github.com/ScremerMemer/hCaptcha-Solver).
+
+> **warning**: this feature is experimental. use at your own risk.
+
+**requirements:**
+1. **Groq API Key**: required for AI vision. set `GROQ_API_KEY` in environment.
+2. **Camoufox**: required for browser fingerprinting.
+   ```bash
+   pip install camoufox[geoip]
+   python -m camoufox fetch
+   ```
+
+**configuration:**
+add to your environment variables:
+```json
+"GROQ_API_KEY": "gsk_..."
+```
 
 ---
 

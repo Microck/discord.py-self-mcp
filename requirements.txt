@@ -2,4 +2,12 @@ discord.py-self[voice]==2.0.1
 mcp
 python-dotenv
 playwright
+camoufox[geoip]
+tls-client
+httpx
+pyjwt
+colorama
+numpy
+scipy
+requests
 
