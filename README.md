@@ -30,24 +30,20 @@ built on the <a href="https://github.com/dolfies/discord.py-self">discord.py-sel
 
 ### quick installation
 
-**npm (recommended)**
+**LLM**
+
+for an LLM assisted instalattion, paste this into your tool of choice (Claude Code, OpenCode, etc):
+```
+Install and configure discord-selfbot-mcp by following instructions here: https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/INSTALL.md
+```
+
+**npm**
 
 ```bash
 npm install -g discord-selfbot-mcp
 discord-selfbot-mcp-setup
 ```
 
-**codex**
-tell codex:
-```
-Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/.codex/INSTALL.md
-```
-
-**opencode**
-tell opencode:
-```
-Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/.opencode/INSTALL.md
-```
 
 ---
 
