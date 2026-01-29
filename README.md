@@ -11,6 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
   <img src="https://img.shields.io/badge/language-python-blue" alt="language">
+  <img src="https://img.shields.io/badge/npm-%40discord--selfbot--mcp-orange" alt="npm">
   <img src="https://img.shields.io/badge/mcp-sdk-orange" alt="mcp">
   <a href="https://github.com/Microck/opencode-studio"><img src="https://img.shields.io/badge/opencode-studio-brown?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAABiElEQVR4nF2Sv0tWcRTGPyeVIpCWwmyJGqQagsqCsL2hhobsD3BvdWhoj/6CiIKaoqXBdMjKRWwQgqZ%2BokSvkIhg9BOT9xPn9Vx79cD3cu6953zP8zznCQB1V0S01d3AKeAKcBVYA94DjyJioru2k9SHE%2Bqc%2Bkd9rL7yf7TUm%2BpQ05yPUM%2Bo626Pp%2BqE2q7GGfWrOpjNnWnAOPAGeAK8Bb4U5D3AJ%2BAQsAAMAHfVvl7gIrAf2Kjiz8BZYB3YC/wFpoGDwHfgEnA0oU7tgHiheEShyXxY/Vn/n6ljye8DcBiYAloRcV3tAdrV1xMRG%2Bo94DywCAwmx33AJHASWK7iiAjzNFOBl7WapPYtYdyo8RlLqVpOVPvq9KoH1NUuOneycaRefqnP1ftdUyiOt5KS%2BqLWdDpVzTXMl5It4Jr6u%2BQ/nhyBc8C7jpowGxGvmxuPqT9qyYuFIKdP71B8WT3SOKexXLrntvqxq3BefaiuFMQ0wqZftxl3M78MjBasfiDN/SAi0kFbtf8ACtKBWZBDoJEAAAAASUVORK5CYII%3D" alt="Add with OpenCode Studio" /></a>
 </p>
@@ -29,14 +30,21 @@ built on the <a href="https://github.com/dolfies/discord.py-self">discord.py-sel
 
 ### quick installation
 
-**codex**  
-tell codex:  
+**npm (recommended)**
+
+```bash
+npm install -g discord-selfbot-mcp
+discord-selfbot-mcp-setup
+```
+
+**codex**
+tell codex:
 ```
 Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/.codex/INSTALL.md
 ```
 
-**opencode**  
-tell opencode:  
+**opencode**
+tell opencode:
 ```
 Fetch and follow instructions from https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/.opencode/INSTALL.md
 ```
@@ -62,11 +70,31 @@ pip install git+https://github.com/Microck/discord.py-self-mcp.git
 
 ---
 
+### npm installation (node.js wrapper)
+
+**prerequisites**:
+- node.js 18+
+- python 3.10+
+- the npm wrapper automatically detects if python package is installed
+
+**install**:
+
+```bash
+npm install -g discord-selfbot-mcp
+```
+
+the npm package is a wrapper that uses the underlying python implementation. if python package is not installed, npm will guide you through installation.
+
+---
+
 ### how it works (setup wizard)
 
 run the interactive setup script to generate your config:
 
 ```bash
+# if using npm
+discord-selfbot-mcp-setup
+
 # if using uv
 uv tool run discord-py-self-mcp-setup
 
@@ -82,7 +110,22 @@ python3 discord_py_self_mcp/setup.py
 
 ### manual configuration
 
-add this to your MCP config (`claude_desktop_config.json`, `.opencode.json`, etc):
+**using npm**:
+
+```json
+{
+  "mcpServers": {
+    "discord-py-self": {
+      "command": "discord-selfbot-mcp",
+      "env": {
+        "DISCORD_TOKEN": "your_token_here"
+      }
+    }
+  }
+}
+```
+
+**using python (pip/uv)**:
 
 ```json
 {

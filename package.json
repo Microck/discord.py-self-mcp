@@ -1,0 +1,38 @@
+{
+  "name": "discord-selfbot-mcp",
+  "version": "1.0.2",
+  "description": "Discord Selfbot MCP server - Node.js wrapper for Python implementation",
+  "main": "index.js",
+  "bin": {
+    "discord-selfbot-mcp": "index.js",
+    "discord-selfbot-mcp-setup": "setup-wizard.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "files": [
+    "index.js",
+    "setup-wizard.js",
+    "scripts/postinstall.js"
+  ],
+  "keywords": [
+    "mcp",
+    "discord",
+    "selfbot",
+    "model-context-protocol",
+    "ai",
+    "automation"
+  ],
+  "author": "Microck",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Microck/discord.py-self-mcp.git"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
