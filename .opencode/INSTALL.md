@@ -1,59 +1,14 @@
-# install discord-py-self-mcp
+# install discord-py-self-mcp for opencode
 
-## prerequisites
+## quick install
 
-- [opencode](https://opencode.ai) installed
-- python 3.10+ installed
-- `uv` package manager (recommended)
-
-## installation steps
-
-### 1. install the package
-
-```bash
-uv tool install git+https://github.com/Microck/discord-py-self-mcp.git
+Paste this into your opencode session:
+```
+Install and configure discord-selfbot-mcp by following instructions here:
+https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/INSTALL.md
 ```
 
-### 2. run the setup wizard
+Or run the interactive installation guide yourself by reading:
+https://raw.githubusercontent.com/Microck/discord.py-self-mcp/refs/heads/master/INSTALL.md
 
-run this command to generate your config and get your token:
-
-```bash
-uv tool run discord-py-self-mcp-setup
-# or if running from source
-python3 discord_py_self_mcp/setup.py
-```
-
-- choose option 1 to extract token via browser (requires playwright)
-- or option 2 to paste it manually
-
-### 3. configure opencode
-
-add the following to your `~/.config/opencode/opencode.json` (or your project's `.opencode.json`) under the `mcp` object:
-
-```json
-{
-  "mcp": {
-    "discord-py-self": {
-      "command": ["uv", "tool", "run", "discord-py-self-mcp"],
-      "enabled": true,
-      "type": "local",
-      "environment": {
-        "DISCORD_TOKEN": "your_discord_token_here"
-      }
-    }
-  }
-}
-```
-
-### 4. restart opencode
-
-restart your opencode session to load the new tools.
-
-## usage
-
-once installed, you can use the available tools:
-
-- `list_guilds()`
-- `send_message({ channel_id: "...", content: "..." })`
-- `read_messages({ channel_id: "..." })`
+The guide supports multiple installation methods (npm, Python with uv/pip) and will automatically detect your setup.
