@@ -1,0 +1,38 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.microck.discord-py-self-mcp",
+  "description": "Comprehensive Discord selfbot MCP server for full user autonomy. Interact with Discord DMs, servers, channels, and UI elements through your AI assistant.",
+  "repository": {
+    "url": "https://github.com/Microck/discord.py-self-mcp",
+    "source": "github"
+  },
+  "version": "1.0.3",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "discord-selfbot-mcp",
+      "runtimeHint": "python",
+      "version": "1.0.3",
+      "packageArguments": [],
+      "environmentVariables": [
+        {
+          "name": "DISCORD_TOKEN",
+          "description": "Your Discord user account token. Required for the selfbot to authenticate.",
+          "format": "string",
+          "isRequired": true,
+          "secret": true
+        },
+        {
+          "name": "CAPTCHA_PROXY",
+          "description": "Optional proxy URL for solving hCaptcha challenges.",
+          "format": "string",
+          "isRequired": false
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
