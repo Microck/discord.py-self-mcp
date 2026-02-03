@@ -38,3 +38,11 @@ venv.bak/
 # Project specific
 mcp.json
 backup_node/
+
+# Dev/test files with tokens (prevent secrets)
+*_TEST.md
+*_REPORT.md
+*_LOG.md
+*_STATUS.md
+test_*.py
+ralph-loop.local.md
