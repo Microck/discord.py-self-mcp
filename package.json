@@ -13,7 +13,8 @@
   "files": [
     "index.js",
     "setup-wizard.js",
-    "scripts/postinstall.js"
+    "scripts/postinstall.js",
+    "server.json"
   ],
   "keywords": [
     "mcp",
