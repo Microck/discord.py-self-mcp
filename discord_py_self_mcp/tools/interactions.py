@@ -46,12 +46,32 @@ async def send_slash_command(arguments: dict):
         # For dolfies/discord.py-self 2.0+:
         # search_slash_command(guild_id, query=command_name, limit=1)
         
-        commands = await channel.application_commands()
         target_command = None
-        for cmd in commands:
-            if cmd.name == command_name and (str(cmd.application_id) == application_id if application_id else True):
-                target_command = cmd
-                break
+        
+        # Try channel.slash_commands(query=...) which is the standard way in discord.py-self
+        if hasattr(channel, "slash_commands"):
+            # Search for the command
+            found_commands = await channel.slash_commands(query=command_name)
+            for cmd in found_commands:
+                if cmd.name == command_name:
+                    if application_id:
+                        if str(cmd.application_id) == str(application_id):
+                            target_command = cmd
+                            break
+                    else:
+                        target_command = cmd
+                        break
+        
+        # Fallback for other versions
+        if not target_command and hasattr(channel, "application_commands"):
+             try:
+                commands = await channel.application_commands()
+                for cmd in commands:
+                    if cmd.name == command_name and (str(cmd.application_id) == application_id if application_id else True):
+                        target_command = cmd
+                        break
+             except Exception:
+                pass
         
         if not target_command:
              return [TextContent(type="text", text=f"Command '{command_name}' not found in channel")]
