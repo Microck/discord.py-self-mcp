@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
+
+function readPackageVersion() {
+  try {
+    const pkgPath = path.join(__dirname, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+    return pkg.version || null;
+  } catch {
+    return null;
+  }
+}
 
 function findPython() {
   const possibleCommands = ['python3', 'python', 'python3.10', 'python3.11', 'python3.12'];
   for (const cmd of possibleCommands) {
     try {
-      const result = spawn.sync(cmd, ['--version'], { stdio: 'ignore' });
+      const result = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
       if (result.status === 0) {
         return cmd;
       }
@@ -19,7 +30,7 @@ function findPython() {
 
 function checkPythonPackage(pythonCmd) {
   try {
-    const result = spawn.sync(
+    const result = spawnSync(
       pythonCmd,
       ['-c', 'import discord_py_self_mcp'],
       { stdio: 'ignore' }
@@ -31,6 +42,28 @@ function checkPythonPackage(pythonCmd) {
 }
 
 async function main() {
+  const argv = process.argv.slice(2);
+  if (argv.includes('--version') || argv.includes('-v')) {
+    const v = readPackageVersion();
+    if (v) {
+      console.log(v);
+      process.exit(0);
+    }
+  }
+
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log('discord-selfbot-mcp (Node.js wrapper)');
+    console.log('Starts the underlying Python MCP server (stdio).');
+    console.log('');
+    console.log('Usage:');
+    console.log('  discord-selfbot-mcp');
+    console.log('  discord-selfbot-mcp --version');
+    console.log('');
+    console.log('Environment:');
+    console.log('  DISCORD_TOKEN (required)');
+    process.exit(0);
+  }
+
   const pythonCmd = findPython();
 
   if (!pythonCmd) {
@@ -45,22 +78,7 @@ async function main() {
     process.exit(1);
   }
 
-  const pythonScript = spawn.sync(
-    pythonCmd,
-    ['-c', 'import discord_py_self_mcp.main as m; print(m.__file__)'],
-    { encoding: 'utf-8' }
-  );
-
-  if (pythonScript.stderr && pythonScript.stderr.includes('ModuleNotFoundError')) {
-    console.error('Error: discord-py-self-mcp not found. Install it first.');
-    console.error('pip install git+https://github.com/Microck/discord.py-self-mcp.git');
-    process.exit(1);
-  }
-
-  const mainPath = pythonScript.stdout.trim();
-  const mainDir = path.dirname(mainPath);
-
-  const proc = spawn(pythonCmd, ['-m', 'discord_py_self_mcp.main'], {
+  const proc = spawn(pythonCmd, ['-m', 'discord_py_self_mcp.main', ...argv], {
     stdio: 'inherit',
     env: {
       ...process.env,

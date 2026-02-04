@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
 const { chromium } = require('playwright');
-const readline = require('readline');
+const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const readline = require('readline');
 
 const DISCORD_URL = 'https://discord.com/login';
+const SERVER_KEY = 'discord-py-self';
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -13,6 +16,143 @@ const rl = readline.createInterface({
 
 function question(prompt) {
   return new Promise(resolve => rl.question(prompt, resolve));
+}
+
+function fileExists(p) {
+  try {
+    fs.accessSync(p, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ensureDirForFile(filePath) {
+  const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+function readJsonFile(filePath) {
+  const raw = fs.readFileSync(filePath, 'utf-8');
+  return JSON.parse(raw);
+}
+
+function backupFile(filePath) {
+  if (!fileExists(filePath)) return null;
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = `${filePath}.bak.${stamp}`;
+  fs.copyFileSync(filePath, backupPath);
+  return backupPath;
+}
+
+function writeJsonFile(filePath, data) {
+  ensureDirForFile(filePath);
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
+}
+
+function buildGenericMcpServersEntry(token) {
+  return {
+    command: 'discord-selfbot-mcp',
+    env: {
+      DISCORD_TOKEN: token
+    }
+  };
+}
+
+function buildOpenCodeMcpEntry(token) {
+  return {
+    command: ['discord-selfbot-mcp'],
+    enabled: true,
+    type: 'local',
+    environment: {
+      DISCORD_TOKEN: token
+    }
+  };
+}
+
+function upsertMcpServerConfig(existing, token, mode) {
+  const root = (existing && typeof existing === 'object') ? existing : {};
+  if (mode === 'opencode-mcp') {
+    if (!root.mcp || typeof root.mcp !== 'object') root.mcp = {};
+    root.mcp[SERVER_KEY] = buildOpenCodeMcpEntry(token);
+    return root;
+  }
+
+  if (!root.mcpServers || typeof root.mcpServers !== 'object') root.mcpServers = {};
+  root.mcpServers[SERVER_KEY] = buildGenericMcpServersEntry(token);
+  return root;
+}
+
+function detectClientConfigs() {
+  const home = os.homedir();
+  const results = [];
+
+  // OpenCode
+  const openCodePath = path.join(home, '.config', 'opencode', 'opencode.json');
+  if (fileExists(openCodePath)) {
+    results.push({ label: 'OpenCode', filePath: openCodePath, mode: 'opencode-auto' });
+  }
+
+  // Claude Desktop (and some Claude Code installs that reuse the same config)
+  let claudePath = null;
+  if (process.platform === 'darwin') {
+    claudePath = path.join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+  } else if (process.platform === 'win32') {
+    const appData = process.env.APPDATA;
+    if (appData) claudePath = path.join(appData, 'Claude', 'claude_desktop_config.json');
+  } else {
+    claudePath = path.join(home, '.config', 'Claude', 'claude_desktop_config.json');
+  }
+  if (claudePath && fileExists(claudePath)) {
+    results.push({ label: 'Claude Desktop', filePath: claudePath, mode: 'mcpServers' });
+  }
+
+  // Codex CLI (best-effort common paths)
+  const codexCandidates = [
+    path.join(home, '.config', 'codex', 'config.json'),
+    path.join(home, '.config', 'codex', 'mcp.json'),
+    path.join(home, '.codex', 'config.json'),
+    path.join(home, '.codex', 'mcp.json')
+  ];
+  for (const p of codexCandidates) {
+    if (fileExists(p)) {
+      results.push({ label: 'Codex', filePath: p, mode: 'mcpServers' });
+      break;
+    }
+  }
+
+  // Gemini CLI (best-effort common paths)
+  const geminiCandidates = [
+    path.join(home, '.config', 'gemini', 'config.json'),
+    path.join(home, '.config', 'gemini', 'mcp.json'),
+    path.join(home, '.config', 'gemini-cli', 'config.json'),
+    path.join(home, '.gemini', 'config.json'),
+    path.join(home, '.gemini', 'mcp.json')
+  ];
+  for (const p of geminiCandidates) {
+    if (fileExists(p)) {
+      results.push({ label: 'Gemini CLI', filePath: p, mode: 'mcpServers' });
+      break;
+    }
+  }
+
+  return results;
+}
+
+async function applyConfigToFile(filePath, token, mode) {
+  let existing = {};
+  if (fileExists(filePath)) {
+    existing = readJsonFile(filePath);
+  }
+
+  const actualMode = (mode === 'opencode-auto')
+    ? ((existing && typeof existing === 'object' && existing.mcp && typeof existing.mcp === 'object') ? 'opencode-mcp' : 'mcpServers')
+    : mode;
+
+  const updated = upsertMcpServerConfig(existing, token, actualMode);
+  const backupPath = backupFile(filePath);
+  writeJsonFile(filePath, updated);
+  return { backupPath, actualMode };
 }
 
 async function getTokenFromBrowser() {
@@ -56,12 +196,7 @@ async function getTokenFromBrowser() {
 function generateConfig(token) {
   return {
     mcpServers: {
-      'discord-selfbot': {
-        command: 'discord-selfbot-mcp',
-        env: {
-          DISCORD_TOKEN: token
-        }
-      }
+      [SERVER_KEY]: buildGenericMcpServersEntry(token)
     }
   };
 }
@@ -89,11 +224,44 @@ async function main() {
   console.log('\nGenerated MCP Configuration:');
   console.log(JSON.stringify(generateConfig(token), null, 2));
 
-  const save = await question('\nSave to mcp.json? (y/n): ');
-  if (save.toLowerCase() === 'y') {
-    const fs = require('fs');
-    fs.writeFileSync('mcp.json', JSON.stringify(generateConfig(token), null, 2));
-    console.log('Saved to mcp.json');
+  const detected = detectClientConfigs();
+  const options = [...detected];
+  options.push({ label: 'Local mcp.json (current dir)', filePath: path.join(process.cwd(), 'mcp.json'), mode: 'mcpServers' });
+
+  console.log('\nWhere should I write this configuration?');
+  for (let i = 0; i < options.length; i++) {
+    console.log(`${i + 1}. ${options[i].label} -> ${options[i].filePath}`);
+  }
+  console.log(`${options.length + 1}. Enter a custom path`);
+  console.log(`${options.length + 2}. Skip (do not write anything)`);
+
+  const selectedRaw = await question(`Choice (1-${options.length + 2}): `);
+  const selected = Number(selectedRaw);
+
+  if (Number.isFinite(selected) && selected >= 1 && selected <= options.length) {
+    const opt = options[selected - 1];
+    try {
+      const { backupPath, actualMode } = await applyConfigToFile(opt.filePath, token, opt.mode);
+      console.log(`\nWrote config to: ${opt.filePath}`);
+      if (backupPath) console.log(`Backup created: ${backupPath}`);
+      if (actualMode === 'opencode-mcp') console.log('Configured using OpenCode `mcp` shape.');
+      else console.log('Configured using `mcpServers` shape.');
+    } catch (e) {
+      console.error(`\nFailed to write config: ${e.message}`);
+    }
+  } else if (Number.isFinite(selected) && selected === options.length + 1) {
+    const customPath = (await question('Enter config file path: ')).trim();
+    if (customPath) {
+      try {
+        const { backupPath } = await applyConfigToFile(customPath, token, 'mcpServers');
+        console.log(`\nWrote config to: ${customPath}`);
+        if (backupPath) console.log(`Backup created: ${backupPath}`);
+      } catch (e) {
+        console.error(`\nFailed to write config: ${e.message}`);
+      }
+    }
+  } else {
+    console.log('\nSkipped writing config.');
   }
 
   rl.close();
