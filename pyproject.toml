@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "discord-py-self-mcp"
-version = "0.1.0"
+version = "1.0.4"
 authors = [
   { name="Microck", email="your.email@example.com" },
 ]
@@ -16,7 +16,15 @@ dependencies = [
     "mcp",
     "python-dotenv",
     "playwright",
-    "audioop-lts; python_version >= '3.13'"
+    "audioop-lts; python_version >= '3.13'",
+    "camoufox[geoip]",
+    "tls-client",
+    "httpx",
+    "pyjwt",
+    "colorama",
+    "numpy",
+    "scipy",
+    "requests"
 ]
 
 [project.scripts]

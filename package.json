@@ -1,6 +1,6 @@
 {
   "name": "discord-selfbot-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Discord Selfbot MCP server - Node.js wrapper for Python implementation",
   "main": "index.js",
   "bin": {

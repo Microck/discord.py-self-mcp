@@ -6,14 +6,14 @@
     "url": "https://github.com/Microck/discord.py-self-mcp",
     "source": "github"
   },
-  "version": "1.0.3",
+  "version": "1.0.4",
   "packages": [
     {
       "registryType": "npm",
       "registryBaseUrl": "https://registry.npmjs.org",
       "identifier": "discord-selfbot-mcp",
       "runtimeHint": "python",
-      "version": "1.0.3",
+      "version": "1.0.4",
       "packageArguments": [],
       "environmentVariables": [
         {
@@ -28,6 +28,13 @@
           "description": "Optional proxy URL for solving hCaptcha challenges.",
           "format": "string",
           "isRequired": false
+        },
+        {
+          "name": "GROQ_API_KEY",
+          "description": "Optional Groq API key used for the experimental hCaptcha solver.",
+          "format": "string",
+          "isRequired": false,
+          "secret": true
         }
       ],
       "transport": {
