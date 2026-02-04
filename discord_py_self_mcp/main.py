@@ -26,7 +26,12 @@ async def run_app():
         logger.error("DISCORD_TOKEN environment variable not set")
         return
 
-    asyncio.create_task(client.start(token))
+    logger.info(f"Starting Discord connection...")
+    logger.info(f"Token (masked): {token[:15]}...{token[-5:] if len(token) > 20 else token}")
+
+    # Start Discord client in background
+    # We don't await it so it doesn't block the MCP server
+    discord_task = asyncio.create_task(client.start(token))
 
     async with stdio_server() as (read_stream, write_stream):
         await app.run(

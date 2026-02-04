@@ -9,7 +9,7 @@ from .motion import motion_data
 from .agent import AIAgent
 
 class HCaptchaSolver:
-    def __init__(self, sitekey: str, host: str, rqdata: str = None, proxy: str = None, debug: bool = False):
+    def __init__(self, sitekey: str, host: str, rqdata: Optional[str] = None, proxy: Optional[str] = None, debug: bool = False):
         self.sitekey = sitekey
         self.host = host.split("//")[-1].split("/")[0]
         self.rqdata = rqdata
