@@ -162,3 +162,42 @@ Have the user restart their MCP client and run `list_guilds`.
 - Token invalid: extract a fresh token (Discord rotates tokens after password change)
 - Voice issues on Linux: install `libffi-dev` and `python3-dev`
 - Captcha solver setup: `python -m camoufox fetch` and set `GROQ_API_KEY` in the MCP server `env`
+
+### Python Module Not Found
+
+If you see `ModuleNotFoundError: No module named 'mcp'`:
+
+1. **If using npm wrapper**:
+   - The npm wrapper automatically finds the Python version with required packages
+   - If it fails, it will show which Python versions were checked
+   - Example error: `Error: mcp module not found in python3.14`
+   - This means python3.14 doesn't have mcp, but python3.10 does
+   - Solution: Install npm package, which will detect the correct Python
+
+2. **If using Python directly**:
+   ```bash
+   # Install with pip (system-wide)
+   pip install git+https://github.com/Microck/discord.py-self-mcp.git
+
+   # Or with --user flag (user install)
+   pip install --user git+https://github.com/Microck/discord.py-self-mcp.git
+   ```
+
+3. **If you see "externally-managed-environment" error**:
+   - This happens on systems with managed Python (Ubuntu/Debian with Homebrew)
+   - Solution: Use npm wrapper instead: `npm install -g discord-selfbot-mcp`
+   - Or create a virtual environment:
+     ```bash
+     python3 -m venv venv
+     source venv/bin/activate
+     pip install git+https://github.com/Microck/discord.py-self-mcp.git
+     ```
+
+4. **Verify installation**:
+   ```bash
+   # Check if discord_py_self_mcp is installed
+   python3 -c "import discord_py_self_mcp; print('OK')"
+
+   # Check if mcp is installed
+   python3 -c "import mcp; print('OK')"
+   ```
