@@ -14,13 +14,46 @@ function readPackageVersion() {
   }
 }
 
+function checkPythonVersion(cmd) {
+  try {
+    const result = spawnSync(cmd, ['--version'], { stdio: 'ignore', encoding: 'utf8' });
+    if (result.status === 0) {
+      const version = result.stdout.match(/Python (\d+\.\d+)/)?.[1];
+      if (version) {
+        const [major, minor] = version.split('.').map(Number);
+        if (major > 3 || (major === 3 && minor >= 10)) {
+          return true;
+        }
+      }
+    }
+  } catch (e) {
+  }
+  return false;
+}
+
+function checkPythonPackage(pythonCmd, packageName) {
+  try {
+    const result = spawnSync(
+      pythonCmd,
+      ['-c', `import ${packageName}; print('OK')`],
+      { stdio: 'ignore' }
+    );
+    return result.status === 0 && result.stdout?.trim() === 'OK';
+  } catch (e) {
+    return false;
+  }
+}
+
 function findPython() {
   const possibleCommands = ['python3', 'python', 'python3.10', 'python3.11', 'python3.12'];
+  
   for (const cmd of possibleCommands) {
     try {
       const result = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
-      if (result.status === 0) {
-        return cmd;
+      if (result.status === 0 && checkPythonVersion(cmd)) {
+        if (checkPythonPackage(cmd, 'discord_py_self_mcp') && checkPythonPackage(cmd, 'mcp')) {
+          return cmd;
+        }
       }
     } catch (e) {
     }
@@ -68,13 +101,45 @@ async function main() {
 
   if (!pythonCmd) {
     console.error('Error: Python 3.10+ not found. Please install Python 3.10 or higher.');
+    console.error('');
+    console.error('Checked Python commands:');
+    for (const cmd of ['python3', 'python', 'python3.10', 'python3.11', 'python3.12']) {
+      const result = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
+      if (result.status === 0) {
+        console.error(`  - ${cmd}: found`);
+      }
+    }
     process.exit(1);
   }
 
-  if (!checkPythonPackage(pythonCmd)) {
-    console.error('Error: discord-py-self-mcp Python package not installed.');
-    console.error('Run: pip install git+https://github.com/Microck/discord.py-self-mcp.git');
+  if (!checkPythonPackage(pythonCmd, 'discord_py_self_mcp')) {
+    console.error(`Error: discord-py-self-mcp Python package not found in ${pythonCmd}.`);
+    console.error('');
+    console.error('Checked Python commands:');
+    for (const cmd of ['python3', 'python', 'python3.10', 'python3.11', 'python3.12']) {
+      if (checkPythonVersion(cmd) && checkPythonPackage(cmd, 'discord_py_self_mcp')) {
+        const mcpInstalled = checkPythonPackage(cmd, 'mcp') ? 'with mcp' : 'without mcp';
+        console.error(`  - ${cmd}: has discord_py_self_mcp ${mcpInstalled}`);
+      }
+    }
+    console.error('');
+    console.error('To install: pip install -e .');
     console.error('Or: uv tool install git+https://github.com/Microck/discord.py-self-mcp.git');
+    process.exit(1);
+  }
+
+  if (!checkPythonPackage(pythonCmd, 'mcp')) {
+    console.error(`Error: mcp module not found in ${pythonCmd}.`);
+    console.error('');
+    console.error('Checked Python commands:');
+    for (const cmd of ['python3', 'python', 'python3.10', 'python3.11', 'python3.12']) {
+      if (checkPythonVersion(cmd) && checkPythonPackage(cmd, 'mcp')) {
+        console.error(`  - ${cmd}: has mcp`);
+      }
+    }
+    console.error('');
+    console.error('To install: pip install mcp');
+    console.error('Or ensure discord-py-self-mcp is installed with all dependencies');
     process.exit(1);
   }
 
