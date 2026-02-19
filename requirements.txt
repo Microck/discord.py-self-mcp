@@ -10,4 +10,5 @@ colorama
 numpy
 scipy
 requests
-
+hcaptcha-challenger[playwright]
+loguru

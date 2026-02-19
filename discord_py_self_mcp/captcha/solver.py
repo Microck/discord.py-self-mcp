@@ -1,179 +1,172 @@
-import json
-import time
+import os
 import asyncio
-import re
-import tls_client
-from typing import Dict, Optional, Any
-from .browser import get_hsw_token
-from .motion import motion_data
-from .agent import AIAgent
+from pathlib import Path
+from typing import Optional, Dict, Any
+import hcaptcha_challenger as solver
+from hcaptcha_challenger.agents import AgentT
+from loguru import logger
+
 
 class HCaptchaSolver:
-    def __init__(self, sitekey: str, host: str, rqdata: Optional[str] = None, proxy: Optional[str] = None, debug: bool = False):
+    def __init__(
+        self,
+        sitekey: str = "a9b5fb07-92ff-493f-86fe-352a2803b3df",
+        host: str = "discord.com",
+        rqdata: Optional[str] = None,
+        proxy: Optional[str] = None,
+        debug: bool = False,
+        playwright_browser=None,
+    ):
         self.sitekey = sitekey
-        self.host = host.split("//")[-1].split("/")[0]
+        self.host = host
         self.rqdata = rqdata
         self.proxy_str = proxy
         self.debug = debug
-        self.ai_agent = AIAgent()
-        
-        # Initialize session
-        self.session = tls_client.Session(client_identifier="chrome_130", random_tls_extension_order=True)
-        self.session.headers = {
-            'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-            'accept-language': 'en-US,en;q=0.9',
-            'cache-control': 'max-age=0',
-            'sec-ch-ua': '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-            'sec-fetch-dest': 'document',
-            'sec-fetch-mode': 'navigate',
-            'sec-fetch-site': 'none',
-            'sec-fetch-user': '?1',
-            'upgrade-insecure-requests': '1',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
-        }
-        
-        if proxy:
-            # Handle proxy string format username:password@ip:port or ip:port
-            p_url = f"http://{proxy}"
-            self.session.proxies = {'http': p_url, 'https': p_url}
+        self.playwright_browser = playwright_browser
 
-        self.motion = motion_data(self.session.headers["user-agent"], f"https://{self.host}")
-        self.HCAPTCHA_VERSION = self._get_version()
+        self._initialized = False
+        self._agent: Optional[AgentT] = None
+        self._page = None
 
     def _log(self, msg: str):
-        if self.debug: print(f"[SOLVER] {msg}")
+        if self.debug:
+            print(f"[HCAPTCHA-CHALLENGER] {msg}")
 
-    def _get_version(self) -> str:
-        try:
-            resp = self.session.get('https://hcaptcha.com/1/api.js?render=explicit&onload=hcaptchaOnLoad')
-            matches = re.findall(r'v1/([A-Za-z0-9]+)/static', resp.text)
-            return matches[1] if len(matches) > 1 else "c3663008fb8d8104807d55045f8251cbe96a2f84"
-        except:
-            return "c3663008fb8d8104807d55045f8251cbe96a2f84"
+    @classmethod
+    def install_models(cls, upgrade: bool = True, clip: bool = True):
+        """Install required AI models. Call once at startup."""
+        solver.install(upgrade=upgrade, clip=clip)
 
-    async def solve(self) -> Dict:
+    async def _ensure_initialized(self):
+        if self._initialized:
+            return
+
+        self._log("Initializing hcaptcha-challenger...")
+
+        tmp_dir = Path(os.getenv("TEMP_DIR", "/tmp/hcaptcha"))
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.playwright_browser is None:
+            from playwright.async_api import async_playwright
+
+            self._playwright = await async_playwright().start()
+            self.playwright_browser = await self._playwright.chromium.launch(
+                headless=True,
+                proxy=self._get_playwright_proxy() if self.proxy_str else None,
+            )
+
+        context = await self.playwright_browser.new_context(
+            locale="en-US",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+        )
+        self._page = await context.new_page()
+
+        self._agent = AgentT.from_page(
+            page=self._page, tmp_dir=tmp_dir, self_supervised=True
+        )
+
+        self._initialized = True
+        self._log("Initialized successfully")
+
+    def _get_playwright_proxy(self) -> Optional[Dict]:
+        if not self.proxy_str:
+            return None
+
+        if "@" in self.proxy_str:
+            auth, server = self.proxy_str.split("@")
+            user, pwd = auth.split(":")
+            return {"server": f"http://{server}", "username": user, "password": pwd}
+        return {"server": f"http://{self.proxy_str}"}
+
+    async def solve(self) -> Dict[str, Any]:
+        """Solve hCaptcha challenge and return token."""
         self._log("Starting solve process...")
-        
-        # 1. Get site config
-        config = self._get_site_config()
-        if not config: return {"success": False, "error": "Failed to get site config"}
-        
-        # 2. Get HSW token
-        if 'c' not in config: return {"success": False, "error": "Invalid config"}
-        hsw = await get_hsw_token(config['c']['req'], self.host, self.sitekey, self._get_proxy_dict())
-        if not hsw: return {"success": False, "error": "Failed to generate HSW token"}
-        
-        # 3. Fetch challenge
-        challenge = await self._fetch_challenge(config, hsw)
-        if not challenge: return {"success": False, "error": "Failed to fetch challenge"}
-        
-        # Check for passive pass
-        if challenge.get('generated_pass_UUID'):
-            return {"success": True, "token": challenge['generated_pass_UUID']}
-            
-        # 4. Solve challenge with AI
-        ai_result = await self.ai_agent.solve_challenge(challenge)
-        answers = self._format_answers(ai_result, challenge)
-        
-        # 5. Submit solution
-        result = await self._submit(challenge, answers, hsw)
-        return result
 
-    def _get_proxy_dict(self) -> Optional[Dict]:
-        if not self.proxy_str: return None
-        # Simple parser, assumes http proxy
-        if '@' in self.proxy_str:
-            auth, server = self.proxy_str.split('@')
-            user, pwd = auth.split(':')
-            return {'server': f'http://{server}', 'username': user, 'password': pwd}
-        return {'server': f'http://{self.proxy_str}'}
+        try:
+            await self._ensure_initialized()
 
-    def _get_site_config(self) -> Optional[Dict]:
-        params = {
-            'v': self.HCAPTCHA_VERSION, 'sitekey': self.sitekey,
-            'host': self.host, 'sc': '1', 'swa': '1', 'spst': '1'
-        }
-        if self.rqdata: params['rqdata'] = self.rqdata
-        
-        resp = self.session.post("https://api2.hcaptcha.com/checksiteconfig", params=params)
-        if resp.status_code == 200:
-            data = resp.json()
-            if 'rqdata' in data: self.rqdata = data['rqdata']
-            return data
+            target_url = f"https://{self.host}"
+
+            if self.host == "discord.com":
+                target_url = "https://discord.com/channels/@me"
+
+            await self._page.goto(target_url, wait_until="domcontentloaded")
+
+            await self._agent.handle_checkbox()
+
+            max_attempts = 8
+            for attempt in range(1, max_attempts + 1):
+                self._log(f"Attempt {attempt}/{max_attempts}")
+
+                result = await self._agent.execute()
+                self._log(f"Result: {result}")
+
+                if result == self._agent.status.CHALLENGE_SUCCESS:
+                    self._log("Challenge solved successfully!")
+                    token = (
+                        await self._page.evaluate("hcaptcha.getResponse()")
+                        or await self._get_token_from_input()
+                    )
+
+                    if token:
+                        return {"success": True, "token": token}
+                    return {"success": False, "error": "Token not found"}
+
+                elif result == self._agent.status.CHALLENGE_BACKCALL:
+                    self._log("Challenge needs refresh, retrying...")
+                    try:
+                        frame = self._page.frame_locator(self._agent.HOOK_CHALLENGE)
+                        await frame.locator("//div[@class='refresh button']").click()
+                        await self._page.wait_for_timeout(500)
+                    except Exception as e:
+                        self._log(f"Refresh error: {e}")
+                        continue
+
+                elif result == self._agent.status.CHALLENGE_ERROR:
+                    self._log("Challenge error occurred")
+                    break
+
+                await self._page.wait_for_timeout(1000)
+
+            return {"success": False, "error": "Max attempts exceeded"}
+
+        except Exception as e:
+            self._log(f"Solve error: {e}")
+            return {"success": False, "error": str(e)}
+
+    async def _get_token_from_input(self) -> Optional[str]:
+        """Try to get token from various sources."""
+        try:
+            token = await self._page.evaluate(
+                """() => {
+                    const input = document.querySelector('textarea[name="h-captcha-response"]');
+                    return input ? input.value : null;
+                }"""
+            )
+            if token:
+                return token
+        except:
+            pass
+
+        try:
+            for frame in self._page.frames:
+                try:
+                    token = await frame.evaluate("hcaptcha.getResponse()")
+                    if token:
+                        return token
+                except:
+                    continue
+        except:
+            pass
+
         return None
 
-    async def _fetch_challenge(self, config: Dict, hsw_token: str) -> Optional[Dict]:
-        data = {
-            'v': self.HCAPTCHA_VERSION, 'sitekey': self.sitekey,
-            'host': self.host, 'hl': 'en-US',
-            'motionData': json.dumps(self.motion.get_captcha()),
-            'n': hsw_token, 'c': json.dumps(config['c'])
-        }
-        if self.rqdata: data['rqdata'] = self.rqdata
-        
-        resp = self.session.post(f"https://api.hcaptcha.com/getcaptcha/{self.sitekey}", data=data)
-        if resp.status_code == 200:
-            return resp.json()
-        return None
-
-    def _format_answers(self, ai_result: Dict, challenge: Dict) -> Dict:
-        # Simplified formatting based on request_type
-        # The AI agent now returns formatted answers (x, y dicts) or similar
-        # We just need to map them to task keys if necessary
-        req_type = challenge.get('request_type')
-        tasklist = challenge.get('tasklist', [])
-        ai_answers = ai_result.get('answers', [])
-        
-        formatted = {}
-        
-        if req_type == 'image_label_binary':
-            # Map grid coordinates to task keys
-            # ai_answers is list of {x: col, y: row}
-            # tasklist is flat list of 9 items
-            selected_indices = {a['y'] * 3 + a['x'] for a in ai_answers}
-            for i, task in enumerate(tasklist):
-                formatted[task['task_key']] = "true" if i in selected_indices else "false"
-                
-        elif req_type == 'image_label_area_select':
-            # Single task usually
-            for i, task in enumerate(tasklist):
-                pt = ai_answers[i] if i < len(ai_answers) else {'x': 200, 'y': 150}
-                formatted[task['task_key']] = [{"entity_name": 0, "entity_type": "default", "entity_coords": [pt['x'], pt['y']]}]
-                
-        elif req_type == 'image_drag_drop':
-             main = tasklist[0]
-             formatted[main['task_key']] = []
-             for ans in ai_answers:
-                 formatted[main['task_key']].append({
-                     "entity_name": ans.get('entity_id'),
-                     "entity_type": "default",
-                     "entity_coords": [ans.get('to_x'), ans.get('to_y')]
-                 })
-                 
-        return formatted
-
-    async def _submit(self, challenge: Dict, answers: Dict, hsw_token: str) -> Dict:
-        data = {
-            'v': self.HCAPTCHA_VERSION, 'sitekey': self.sitekey,
-            'serverdomain': self.host, 'job_mode': challenge['request_type'],
-            'motionData': json.dumps(self.motion.check_captcha()),
-            'n': hsw_token, 'c': json.dumps(challenge['c']),
-            'answers': answers
-        }
-        if self.rqdata: data['rqdata'] = self.rqdata
-        
-        url = f"https://api.hcaptcha.com/checkcaptcha/{self.sitekey}/{challenge['key']}"
-        resp = self.session.post(url, data=json.dumps(data), headers={
-            'content-type': 'application/json;charset=UTF-8',
-            'origin': 'https://newassets.hcaptcha.com',
-            'referer': 'https://newassets.hcaptcha.com/'
-        })
-        
-        if resp.status_code == 200:
-            res = resp.json()
-            if res.get('pass'):
-                return {"success": True, "token": res.get('generated_pass_UUID')}
-            return {"success": False, "error": "Rejected"}
-        return {"success": False, "error": f"HTTP {resp.status_code}"}
+    async def close(self):
+        """Cleanup resources."""
+        try:
+            if self._page:
+                await self._page.context.close()
+            if hasattr(self, "_playwright"):
+                await self._playwright.stop()
+        except Exception as e:
+            self._log(f"Close error: {e}")

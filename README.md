@@ -232,19 +232,39 @@ powered by the robust `discord.py-self` library.
 ### captcha solving (experimental)
 
 automatically solves hCaptchas when encountered (e.g., joining servers, dms).
-built upon [ScremerMemer/hCaptcha-Solver](https://github.com/ScremerMemer/hCaptcha-Solver).
+built upon [QIN2DIM/hcaptcha-challenger](https://github.com/QIN2DIM/hcaptcha-challenger) - an AI-powered hCaptcha solver using vision models.
 
 > **warning**: this feature is experimental. use at your own risk.
 
 **requirements:**
-1. **Groq API Key**: required for ai vision. set `GROQ_API_KEY` in your mcp client `env`.
-2. **Camoufox**: required for browser fingerprinting.
+1. **AI Models**: hcaptcha-challenger will automatically download required models on first run.
+2. **Playwright**: Required for browser automation.
    ```bash
-   python -m camoufox fetch
+   playwright install chromium --with-deps
    ```
 
 **optional:**
 - `CAPTCHA_PROXY`: proxy url for solving hCaptcha challenges.
+- `TEMP_DIR`: Directory for temporary model files (default: `/tmp/hcaptcha`)
+
+---
+
+### rate limiting (recommended)
+
+built-in rate limiting to prevent account bans. configurable via environment variables.
+
+**configuration:**
+
+| variable | default | description |
+|----------|---------|-------------|
+| `RATE_LIMIT_ENABLED` | `false` | Enable/disable rate limiting |
+| `RATE_LIMIT_MESSAGES_PER_MINUTE` | `10` | Max messages per minute |
+| `RATE_LIMIT_MESSAGES_PER_SECOND` | `1` | Max messages per second |
+| `RATE_LIMIT_ACTIONS_PER_MINUTE` | `5` | Max actions (joins, etc.) per minute |
+| `RATE_LIMIT_COOLDOWN` | `60` | Cooldown duration when limit hit (seconds) |
+| `RATE_LIMIT_RESPECT_GLOBAL` | `true` | Respect Discord's global rate limit |
+
+> **recommended**: Enable rate limiting (`RATE_LIMIT_ENABLED=true`) to reduce ban risk.
 
 ---
 
@@ -268,10 +288,8 @@ discord_py_self_mcp/
 ├── bot.py
 ├── main.py
 ├── setup.py
+├── rate_limiter.py
 ├── captcha/
-│   ├── agent.py
-│   ├── browser.py
-│   ├── motion.py
 │   └── solver.py
 └── tools/
     ├── channels.py

@@ -1,13 +1,17 @@
 import os
-import os
-import discord
 import asyncio
+import discord
 import inspect
 import importlib
 from typing import Dict, Any, Optional
 from google.protobuf import json_format
 from dotenv import load_dotenv
-from .captcha.solver import HCaptchaSolver
+from discord_py_self_mcp.captcha.solver import HCaptchaSolver
+from discord_py_self_mcp.rate_limiter import (
+    RateLimiter,
+    RateLimitConfig,
+    get_rate_limiter,
+)
 
 load_dotenv()
 
@@ -27,6 +31,28 @@ if (
     setattr(discord_settings, "MessageToDict", _message_to_dict_compat)
 
 
+rate_limiter = None
+
+
+def init_rate_limiter():
+    global rate_limiter
+    config = RateLimitConfig(
+        enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
+        messages_per_minute=int(os.getenv("RATE_LIMIT_MESSAGES_PER_MINUTE", "10")),
+        messages_per_second=int(os.getenv("RATE_LIMIT_MESSAGES_PER_SECOND", "1")),
+        actions_per_minute=int(os.getenv("RATE_LIMIT_ACTIONS_PER_MINUTE", "5")),
+        cooldown_on_limit=int(os.getenv("RATE_LIMIT_COOLDOWN", "60")),
+        respect_global_delay=os.getenv("RATE_LIMIT_RESPECT_GLOBAL", "true").lower()
+        == "true",
+    )
+    rate_limiter = RateLimiter(config)
+    if config.enabled:
+        print(
+            f"[RATE_LIMIT] Enabled with config: {config.messages_per_minute} msg/min, {config.actions_per_minute} actions/min"
+        )
+    return rate_limiter
+
+
 async def captcha_handler(
     captcha_required, client: Optional[discord.Client] = None
 ) -> str:
@@ -39,6 +65,9 @@ async def captcha_handler(
             debug=True,
             proxy=os.getenv("CAPTCHA_PROXY"),
         )
+
+        HCaptchaSolver.install_models(upgrade=True, clip=True)
+
         result = await solver.solve()
         if result.get("success"):
             print(f"[CAPTCHA] Solved: {result['token'][:20]}...")
@@ -71,13 +100,18 @@ class CaptchaHandlerImpl(discord.CaptchaHandler):
 
 class SelfBot(discord.Client):
     def __init__(self):
+        init_rate_limiter()
         captcha_handler_instance = CaptchaHandlerImpl(self)
         super().__init__(captcha_handler=captcha_handler_instance)
 
     async def on_ready(self):
-        print(f"[READY] Logged in as {self.user} (ID: {self.user.id})")
+        user_id = self.user.id if self.user else "unknown"
+        print(f"[READY] Logged in as {self.user} (ID: {user_id})")
         print(f"[READY] Guilds: {len(self.guilds)}")
         print(f"[READY] Private channels: {len(self.private_channels)}")
+
+        if rate_limiter and rate_limiter.is_enabled():
+            print(f"[RATE_LIMIT] Active - {rate_limiter.get_stats()}")
 
     async def on_connect(self):
         print("[CONNECT] Connected to Discord gateway")
