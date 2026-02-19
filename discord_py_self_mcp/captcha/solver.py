@@ -2,8 +2,9 @@ import os
 import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
-import hcaptcha_challenger as solver
-from hcaptcha_challenger.agents import AgentT
+import hcaptcha_challenger
+from hcaptcha_challenger.agent.challenger import AgentV
+from hcaptcha_challenger import models
 from loguru import logger
 
 
@@ -25,7 +26,7 @@ class HCaptchaSolver:
         self.playwright_browser = playwright_browser
 
         self._initialized = False
-        self._agent: Optional[AgentT] = None
+        self._agent: Optional[AgentV] = None
         self._page = None
 
     def _log(self, msg: str):
@@ -35,7 +36,7 @@ class HCaptchaSolver:
     @classmethod
     def install_models(cls, upgrade: bool = True, clip: bool = True):
         """Install required AI models. Call once at startup."""
-        solver.install(upgrade=upgrade, clip=clip)
+        hcaptcha_challenger.models.install(upgrade=upgrade, verify=clip)
 
     async def _ensure_initialized(self):
         if self._initialized:
@@ -61,9 +62,7 @@ class HCaptchaSolver:
         )
         self._page = await context.new_page()
 
-        self._agent = AgentT.from_page(
-            page=self._page, tmp_dir=tmp_dir, self_supervised=True
-        )
+        self._agent = AgentV(page=self._page, debug=self.debug)
 
         self._initialized = True
         self._log("Initialized successfully")
@@ -92,74 +91,18 @@ class HCaptchaSolver:
 
             await self._page.goto(target_url, wait_until="domcontentloaded")
 
-            await self._agent.handle_checkbox()
+            await self._agent.wait_for_challenge()
 
-            max_attempts = 8
-            for attempt in range(1, max_attempts + 1):
-                self._log(f"Attempt {attempt}/{max_attempts}")
+            token = await self._agent.get_token()
 
-                result = await self._agent.execute()
-                self._log(f"Result: {result}")
+            if token:
+                return {"success": True, "token": token}
 
-                if result == self._agent.status.CHALLENGE_SUCCESS:
-                    self._log("Challenge solved successfully!")
-                    token = (
-                        await self._page.evaluate("hcaptcha.getResponse()")
-                        or await self._get_token_from_input()
-                    )
-
-                    if token:
-                        return {"success": True, "token": token}
-                    return {"success": False, "error": "Token not found"}
-
-                elif result == self._agent.status.CHALLENGE_BACKCALL:
-                    self._log("Challenge needs refresh, retrying...")
-                    try:
-                        frame = self._page.frame_locator(self._agent.HOOK_CHALLENGE)
-                        await frame.locator("//div[@class='refresh button']").click()
-                        await self._page.wait_for_timeout(500)
-                    except Exception as e:
-                        self._log(f"Refresh error: {e}")
-                        continue
-
-                elif result == self._agent.status.CHALLENGE_ERROR:
-                    self._log("Challenge error occurred")
-                    break
-
-                await self._page.wait_for_timeout(1000)
-
-            return {"success": False, "error": "Max attempts exceeded"}
+            return {"success": False, "error": "Token not found"}
 
         except Exception as e:
             self._log(f"Solve error: {e}")
             return {"success": False, "error": str(e)}
-
-    async def _get_token_from_input(self) -> Optional[str]:
-        """Try to get token from various sources."""
-        try:
-            token = await self._page.evaluate(
-                """() => {
-                    const input = document.querySelector('textarea[name="h-captcha-response"]');
-                    return input ? input.value : null;
-                }"""
-            )
-            if token:
-                return token
-        except:
-            pass
-
-        try:
-            for frame in self._page.frames:
-                try:
-                    token = await frame.evaluate("hcaptcha.getResponse()")
-                    if token:
-                        return token
-                except:
-                    continue
-        except:
-            pass
-
-        return None
 
     async def close(self):
         """Cleanup resources."""
