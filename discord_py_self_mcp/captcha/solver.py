@@ -17,6 +17,7 @@ class HCaptchaSolver:
         proxy: Optional[str] = None,
         debug: bool = False,
         playwright_browser=None,
+        gemini_api_key: Optional[str] = None,
     ):
         self.sitekey = sitekey
         self.host = host
@@ -24,6 +25,7 @@ class HCaptchaSolver:
         self.proxy_str = proxy
         self.debug = debug
         self.playwright_browser = playwright_browser
+        self.gemini_api_key = gemini_api_key
 
         self._initialized = False
         self._agent: Optional[AgentV] = None
@@ -33,16 +35,13 @@ class HCaptchaSolver:
         if self.debug:
             print(f"[HCAPTCHA-CHALLENGER] {msg}")
 
-    @classmethod
-    def install_models(cls, upgrade: bool = True, clip: bool = True):
-        """Install required AI models. Call once at startup."""
-        hcaptcha_challenger.models.install(upgrade=upgrade, verify=clip)
-
     async def _ensure_initialized(self):
         if self._initialized:
             return
 
         self._log("Initializing hcaptcha-challenger...")
+
+        from hcaptcha_challenger.agent.challenger import AgentConfig
 
         tmp_dir = Path(os.getenv("TEMP_DIR", "/tmp/hcaptcha"))
         tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -62,7 +61,15 @@ class HCaptchaSolver:
         )
         self._page = await context.new_page()
 
-        self._agent = AgentV(page=self._page, debug=self.debug)
+        agent_config = AgentConfig(
+            GEMINI_API_KEY=self.gemini_api_key,
+            cache_dir=tmp_dir / ".cache",
+            challenge_dir=tmp_dir / ".challenge",
+            captcha_response_dir=tmp_dir / ".captcha",
+            enable_challenger_debug=self.debug,
+        )
+
+        self._agent = AgentV(page=self._page, agent_config=agent_config)
 
         self._initialized = True
         self._log("Initialized successfully")

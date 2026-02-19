@@ -59,14 +59,18 @@ async def captcha_handler(
     print(f"[CAPTCHA] Triggered")
     try:
         sitekey = "a9b5fb07-92ff-493f-86fe-352a2803b3df"
+
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            raise Exception("GEMINI_API_KEY not set - required for hCaptcha solving")
+
         solver = HCaptchaSolver(
             sitekey=sitekey,
             host="discord.com",
             debug=True,
             proxy=os.getenv("CAPTCHA_PROXY"),
+            gemini_api_key=gemini_api_key,
         )
-
-        HCaptchaSolver.install_models(upgrade=True, clip=True)
 
         result = await solver.solve()
         if result.get("success"):

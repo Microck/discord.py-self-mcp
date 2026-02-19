@@ -237,7 +237,7 @@ built upon [QIN2DIM/hcaptcha-challenger](https://github.com/QIN2DIM/hcaptcha-cha
 > **warning**: this feature is experimental. use at your own risk.
 
 **requirements:**
-1. **AI Models**: hcaptcha-challenger will automatically download required models on first run.
+1. **Gemini API Key**: Required for AI vision. Get from [Google AI Studio](https://aistudio.google.com/app/apikey). Set `GEMINI_API_KEY` in your mcp client `env`.
 2. **Playwright**: Required for browser automation.
    ```bash
    playwright install chromium --with-deps
