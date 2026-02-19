@@ -53,60 +53,13 @@ def init_rate_limiter():
     return rate_limiter
 
 
-async def captcha_handler(
-    captcha_required, client: Optional[discord.Client] = None
-) -> str:
-    print(f"[CAPTCHA] Triggered")
-    try:
-        sitekey = "a9b5fb07-92ff-493f-86fe-352a2803b3df"
-
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise Exception("GEMINI_API_KEY not set - required for hCaptcha solving")
-
-        solver = HCaptchaSolver(
-            sitekey=sitekey,
-            host="discord.com",
-            debug=True,
-            proxy=os.getenv("CAPTCHA_PROXY"),
-            gemini_api_key=gemini_api_key,
-        )
-
-        result = await solver.solve()
-        if result.get("success"):
-            print(f"[CAPTCHA] Solved: {result['token'][:20]}...")
-            return result["token"]
-        else:
-            print(f"[CAPTCHA] Failed: {result.get('error')}")
-            raise Exception(f"Captcha solve failed: {result.get('error')}")
-    except Exception as e:
-        print(f"[CAPTCHA] Error: {e}")
-        raise
-
-
-class CaptchaHandlerImpl(discord.CaptchaHandler):
-    def __init__(self, client: Optional[discord.Client] = None):
-        self.client = client
-
-    async def fetch_token(
-        self, data: Dict[str, Any], proxy: Optional[str] = None, proxy_auth=None
-    ) -> str:
-        return await captcha_handler(data, self.client)
-
-    async def prefetch_token(
-        self, proxy: Optional[str] = None, proxy_auth=None
-    ) -> None:
-        pass
-
-    async def startup(self):
-        pass
+captcha_solver = None
 
 
 class SelfBot(discord.Client):
     def __init__(self):
         init_rate_limiter()
-        captcha_handler_instance = CaptchaHandlerImpl(self)
-        super().__init__(captcha_handler=captcha_handler_instance)
+        super().__init__()
 
     async def on_ready(self):
         user_id = self.user.id if self.user else "unknown"
@@ -131,6 +84,35 @@ class SelfBot(discord.Client):
 
     async def on_resumed(self):
         print("[RESUMED] Session resumed")
+
+    async def on_captcha(self, data: Dict[str, Any]) -> str:
+        return await solve_captcha()
+
+
+async def solve_captcha() -> str:
+    global captcha_solver
+    print(f"[CAPTCHA] Triggered")
+
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        raise Exception("GEMINI_API_KEY not set - required for hCaptcha solving")
+
+    if captcha_solver is None:
+        captcha_solver = HCaptchaSolver(
+            sitekey="a9b5fb07-92ff-493f-86fe-352a2803b3df",
+            host="discord.com",
+            debug=True,
+            proxy=os.getenv("CAPTCHA_PROXY"),
+            gemini_api_key=gemini_api_key,
+        )
+
+    result = await captcha_solver.solve()
+    if result.get("success"):
+        print(f"[CAPTCHA] Solved: {result['token'][:20]}...")
+        return result["token"]
+    else:
+        print(f"[CAPTCHA] Failed: {result.get('error')}")
+        raise Exception(f"Captcha solve failed: {result.get('error')}")
 
 
 client = SelfBot()
