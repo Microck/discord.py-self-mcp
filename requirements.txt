@@ -1,4 +1,4 @@
-discord.py-self[voice]==2.0.1
+discord.py-self[voice]>=2.0.1
 mcp
 python-dotenv
 playwright
