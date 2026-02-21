@@ -49,6 +49,9 @@ pnpm-debug.log*
 # Project specific
 mcp.json
 backup_node/
+HANDOFF.md
+mcp-server.log
+mcp-server-error.log
 
 # Dev/test files with tokens (prevent secrets)
 *_TEST.md

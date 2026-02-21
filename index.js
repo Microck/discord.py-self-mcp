@@ -4,6 +4,8 @@ const { spawn, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const PYTHON_COMMANDS = ['python3.10', 'python3.11', 'python3.12', 'python3', 'python'];
+
 function readPackageVersion() {
   try {
     const pkgPath = path.join(__dirname, 'package.json');
@@ -16,7 +18,7 @@ function readPackageVersion() {
 
 function checkPythonVersion(cmd) {
   try {
-    const result = spawnSync(cmd, ['--version'], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8' });
+    const result = spawnSync(cmd, ['--version'], { stdio: 'pipe', encoding: 'utf8' });
     const output = result.stdout || result.stderr || '';
     if (result.status === 0) {
       const version = output.match(/Python (\d+\.\d+)/)?.[1];
@@ -37,7 +39,7 @@ function checkPythonPackage(pythonCmd, packageName) {
     const result = spawnSync(
       pythonCmd,
       ['-c', `import ${packageName}; print('OK')`],
-      { stdio: 'ignore' }
+      { stdio: 'pipe', encoding: 'utf8' }
     );
     return result.status === 0 && result.stdout?.trim() === 'OK';
   } catch (e) {
@@ -46,32 +48,25 @@ function checkPythonPackage(pythonCmd, packageName) {
 }
 
 function findPython() {
-  const possibleCommands = ['python3.10', 'python3.11', 'python3.12', 'python3', 'python'];
-  
-  for (const cmd of possibleCommands) {
-    try {
-      if (checkPythonVersion(cmd)) {
-        if (checkPythonPackage(cmd, 'discord_py_self_mcp') && checkPythonPackage(cmd, 'mcp')) {
-          return cmd;
-        }
-      }
-    } catch (e) {
+  for (const cmd of PYTHON_COMMANDS) {
+    if (checkPythonVersion(cmd)) {
+      return cmd;
     }
   }
   return null;
 }
 
-function checkPythonPackage(pythonCmd) {
-  try {
-    const result = spawnSync(
-      pythonCmd,
-      ['-c', 'import discord_py_self_mcp'],
-      { stdio: 'ignore' }
-    );
-    return result.status === 0;
-  } catch (e) {
-    return false;
+function findPythonWithRequiredPackages() {
+  for (const cmd of PYTHON_COMMANDS) {
+    if (
+      checkPythonVersion(cmd) &&
+      checkPythonPackage(cmd, 'discord_py_self_mcp') &&
+      checkPythonPackage(cmd, 'mcp')
+    ) {
+      return cmd;
+    }
   }
+  return null;
 }
 
 async function main() {
@@ -97,16 +92,16 @@ async function main() {
     process.exit(0);
   }
 
-  const pythonCmd = findPython();
+  const pythonCmd = findPythonWithRequiredPackages() || findPython();
 
   if (!pythonCmd) {
     console.error('Error: Python 3.10+ not found. Please install Python 3.10 or higher.');
     console.error('');
     console.error('Checked Python commands:');
-    for (const cmd of ['python3.10', 'python3.11', 'python3.12', 'python3', 'python']) {
+    for (const cmd of PYTHON_COMMANDS) {
       const result = spawnSync(cmd, ['--version'], { stdio: 'ignore' });
       if (result.status === 0) {
-        console.error(`  - \${cmd}: found`);
+        console.error(`  - ${cmd}: found`);
       }
     }
     process.exit(1);
@@ -116,7 +111,7 @@ async function main() {
     console.error(`Error: discord-py-self-mcp Python package not found in ${pythonCmd}.`);
     console.error('');
     console.error('Checked Python commands:');
-    for (const cmd of ['python3.10', 'python3.11', 'python3.12', 'python3', 'python']) {
+    for (const cmd of PYTHON_COMMANDS) {
       if (checkPythonVersion(cmd) && checkPythonPackage(cmd, 'discord_py_self_mcp')) {
         const mcpInstalled = checkPythonPackage(cmd, 'mcp') ? 'with mcp' : 'without mcp';
         console.error(`  - ${cmd}: has discord_py_self_mcp ${mcpInstalled}`);
@@ -132,7 +127,7 @@ async function main() {
     console.error(`Error: mcp module not found in ${pythonCmd}.`);
     console.error('');
     console.error('Checked Python commands:');
-    for (const cmd of ['python3', 'python', 'python3.10', 'python3.11', 'python3.12']) {
+    for (const cmd of PYTHON_COMMANDS) {
       if (checkPythonVersion(cmd) && checkPythonPackage(cmd, 'mcp')) {
         console.error(`  - ${cmd}: has mcp`);
       }
