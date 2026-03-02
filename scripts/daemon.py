@@ -171,7 +171,7 @@ class DiscordDaemon:
             messages.append({
                 "id": msg.id,
                 "author": msg.author.name if msg.author else "Unknown",
-                "content": msg.content,
+                "content": msg.clean_content if msg.clean_content else msg.content,
                 "created_at": msg.created_at.isoformat()
             })
         messages.reverse()
