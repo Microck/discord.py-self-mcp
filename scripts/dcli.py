@@ -95,22 +95,34 @@ def send_request(command_data, timeout=30):
         sys.exit(1)
 
 
-def format_messages(messages, reverse=True):
+def format_messages(messages, reverse=True, use_local_timezone=True):
     """Format messages for display"""
+    import zoneinfo
+    from datetime import datetime
+    
     if reverse:
         messages = list(reversed(messages))
+    
+    # Get local timezone (default to UTC if not available)
+    local_tz = None
+    if use_local_timezone:
+        try:
+            local_tz = zoneinfo.ZoneInfo("localtime") if hasattr(zoneinfo, 'ZoneInfo') else None
+        except Exception:
+            local_tz = None
     
     for msg in messages:
         author = msg.get("author", "Unknown")
         content = msg.get("content", "")[:200] if msg.get("content") else "[No content]"
         created_at = msg.get("created_at", "")
         if created_at:
-            # Parse ISO format and format nicely
+            # Parse ISO format and convert to local timezone
             try:
-                from datetime import datetime
                 dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                if local_tz:
+                    dt = dt.astimezone(local_tz)
                 created_at = dt.strftime('%Y-%m-%d %H:%M')
-            except:
+            except Exception:
                 pass
         print(f"[{created_at}] {author}: {content}")
 
