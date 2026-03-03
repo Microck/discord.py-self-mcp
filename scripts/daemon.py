@@ -191,7 +191,7 @@ class DiscordDaemon:
             elif cmd == "user_info":
                 return self._get_user_info(args.get("user_id"))
             elif cmd == "create_thread":
-                return await self._create_thread(args.get("channel_id"), args.get("name"), args.get("message_id"))
+                return await self._create_thread(args.get("channel_id"), args.get("name"), args.get("message_id"), args.get("content"))
             else:
                 return {"error": f"Unknown command: {cmd}"}
         except Exception as e:
@@ -410,23 +410,30 @@ class DiscordDaemon:
             "bot": user.bot
         }
     
-    async def _create_thread(self, channel_id, name, message_id):
+    async def _create_thread(self, channel_id, name, message_id, content=None):
         channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
         if not channel:
             return {"error": "Channel not found"}
 
-        if not isinstance(channel, discord.TextChannel):
-            return {"error": "Channel must be a text channel"}
-
-        if message_id:
-            message = await channel.fetch_message(message_id)
-            if not message:
-                return {"error": "Message not found"}
-            thread = await message.create_thread(name=name or f"Thread-{message_id}")
-            return {"thread_id": thread.id, "thread_name": thread.name, "success": True}
+        # Support both TextChannel and ForumChannel
+        if isinstance(channel, discord.ForumChannel):
+            # For forum channels, create a thread with an initial message
+            if not content:
+                content = name or "New thread"
+            thread_with_message = await channel.create_thread(name=name, content=content, reason="Created via CLI")
+            return {"thread_id": thread_with_message.thread.id, "thread_name": thread_with_message.thread.name, "success": True}
+        elif isinstance(channel, discord.TextChannel):
+            if message_id:
+                message = await channel.fetch_message(message_id)
+                if not message:
+                    return {"error": "Message not found"}
+                thread = await message.create_thread(name=name or f"Thread-{message_id}")
+                return {"thread_id": thread.id, "thread_name": thread.name, "success": True}
+            else:
+                thread = await channel.create_thread(name=name, reason="Created via CLI")
+                return {"thread_id": thread.id, "thread_name": thread.name, "success": True}
         else:
-            thread = await channel.create_thread(name=name, reason="Created via CLI")
-            return {"thread_id": thread.id, "thread_name": thread.name, "success": True}
+            return {"error": "Channel must be a text channel or forum channel"}
 
     async def _delete_message(self, channel_id, message_id):
         """Delete a message from a channel."""
@@ -468,6 +475,7 @@ class DiscordDaemon:
             "id": thread.id,
             "name": thread.name,
             "parent": thread.parent.name if thread.parent else "Unknown",
+            "parent_id": thread.parent_id,
             "owner": thread.owner.name if thread.owner else "Unknown",
             "archived": thread.archived,
             "locked": thread.locked,

@@ -366,6 +366,7 @@ def cmd_get_thread_info(thread_id):
     print(f"  Name: {result.get('name')}")
     print(f"  ID: {result.get('id')}")
     print(f"  Parent: #{result.get('parent', 'Unknown')}")
+    print(f"  Parent ID: {result.get('parent_id', 'Unknown')}")
     print(f"  Owner: {result.get('owner', 'Unknown')}")
     print(f"  Archived: {result.get('archived', False)}")
     print(f"  Locked: {result.get('locked', False)}")
@@ -435,11 +436,11 @@ def cmd_user_info(user_id):
     print(f"  Bot: {result.get('bot')}")
 
 
-def cmd_create_thread(channel_id, name, message_id):
+def cmd_create_thread(channel_id, name, message_id, content=None):
     """Create a thread"""
     result = send_request({
         "command": "create_thread",
-        "args": {"channel_id": channel_id, "name": name, "message_id": message_id}
+        "args": {"channel_id": channel_id, "name": name, "message_id": message_id, "content": content}
     })
     
     if "error" in result:
@@ -562,6 +563,7 @@ def main():
     create_thread_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
     create_thread_parser.add_argument("--name", "-n", help="Thread name")
     create_thread_parser.add_argument("--message", "-m", type=int, help="Message ID to create thread from")
+    create_thread_parser.add_argument("--content", "-t", help="Content for forum thread (required for forum channels)")
     
     args = parser.parse_args()
     
@@ -605,7 +607,7 @@ def main():
     elif args.command == "user-info":
         cmd_user_info(args.user)
     elif args.command == "create-thread":
-        cmd_create_thread(args.channel, args.name, args.message)
+        cmd_create_thread(args.channel, args.name, args.message, args.content)
 
 
 if __name__ == "__main__":
