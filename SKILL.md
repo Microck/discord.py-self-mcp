@@ -79,9 +79,32 @@ python3 scripts/dcli.py daemon restart
 python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "Hello World"
 ```
 
+#### Delete Message
+```bash
+python3 scripts/dcli.py delete-message --channel CHANNEL_ID --message MESSAGE_ID
+```
+
+#### Pin Message
+```bash
+python3 scripts/dcli.py pin-message --channel CHANNEL_ID --message MESSAGE_ID
+```
+
+#### Create Thread
+```bash
+# Create thread from message
+python3 scripts/dcli.py create-thread --channel CHANNEL_ID --name "Thread Name" --message MESSAGE_ID
+
+# Create standalone thread
+python3 scripts/dcli.py create-thread --channel CHANNEL_ID --name "Thread Name"
+```
+
 #### Read Messages
 ```bash
 python3 scripts/dcli.py read-messages --channel CHANNEL_ID --limit 20
+
+# Read messages after specific time
+python3 scripts/dcli.py read-messages --channel CHANNEL_ID --limit 20 --after "4h"
+python3 scripts/dcli.py read-messages --channel CHANNEL_ID --after "2024-01-01T00:00:00"
 ```
 
 #### List Guilds (Servers)
@@ -97,6 +120,24 @@ python3 scripts/dcli.py list-channels --guild GUILD_ID
 #### List All Threads in Guild
 ```bash
 python3 scripts/dcli.py list-guild-threads --guild GUILD_ID
+```
+
+#### List Recent Threads (with activity)
+```bash
+# List threads active in last 24 hours (default)
+python3 scripts/dcli.py list-recent-threads --guild GUILD_ID
+
+# List threads active in last 4 hours
+python3 scripts/dcli.py list-recent-threads --guild GUILD_ID --within 4
+```
+
+#### Read Recent Threads Messages
+```bash
+# Read messages from all threads active in last 4 hours
+python3 scripts/dcli.py read-recent-threads --guild GUILD_ID --within 4
+
+# Read max 10 messages per thread
+python3 scripts/dcli.py read-recent-threads --guild GUILD_ID --within 4 --limit-per-thread 10
 ```
 
 #### Get User Info
@@ -120,6 +161,32 @@ python3 scripts/dcli.py list-threads --channel CHANNEL_ID --archived
 #### Read Thread Messages
 ```bash
 python3 scripts/dcli.py read-thread --thread THREAD_ID --limit 50
+
+# Read messages after specific time
+python3 scripts/dcli.py read-thread --thread THREAD_ID --after "4h"
+```
+
+#### Get Thread Info
+```bash
+python3 scripts/dcli.py get-thread-info --thread THREAD_ID
+```
+
+#### Archive/Unarchive Thread
+```bash
+# Archive thread
+python3 scripts/dcli.py archive-thread --thread THREAD_ID
+
+# Unarchive thread
+python3 scripts/dcli.py archive-thread --thread THREAD_ID --unarchive
+```
+
+#### Join/Leave Thread
+```bash
+# Join thread
+python3 scripts/dcli.py join-thread --thread THREAD_ID
+
+# Leave thread
+python3 scripts/dcli.py leave-thread --thread THREAD_ID
 ```
 
 ## Configuration
@@ -130,6 +197,13 @@ Create a `.env` file:
 ```bash
 DISCORD_TOKEN=your_discord_token_here
 ```
+
+### Time Formats
+
+Commands that support `--after` parameter accept the following formats:
+- `4h`, `30m`, `1d` - Relative time (hours, minutes, days)
+- `2024-01-01T00:00:00` - ISO datetime
+- `1704067200` - Unix timestamp
 
 > **Important:** Automating user accounts is against the Discord ToS. Use this at your own risk.
 
