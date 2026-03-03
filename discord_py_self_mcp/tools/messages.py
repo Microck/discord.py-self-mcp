@@ -1,5 +1,4 @@
 import discord
-import discord
 from mcp.types import TextContent
 from .registry import registry
 from .embed import format_embed
