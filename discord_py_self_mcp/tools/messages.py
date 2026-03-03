@@ -1,7 +1,7 @@
 import discord
-import discord
 from mcp.types import TextContent
 from .registry import registry
+from .embed import format_embed
 from ..bot import client
 
 
@@ -78,7 +78,15 @@ async def read_messages(arguments: dict):
 
         messages = []
         async for msg in channel.history(limit=limit):
-            messages.append(f"{msg.author.name}: {msg.content}")
+            msg_parts = [f"{msg.author.name}:"]
+            if msg.content:
+                msg_parts.append(msg.content)
+            # Add embed text
+            for embed in msg.embeds:
+                embed_text = format_embed(embed)
+                if embed_text:
+                    msg_parts.append(f"[Embed]: {embed_text}")
+            messages.append(" ".join(msg_parts))
 
         return [TextContent(type="text", text="\n".join(reversed(messages)))]
     except Exception as e:
@@ -124,8 +132,20 @@ async def search_messages(arguments: dict):
         messages = []
         # Basic filtering using history since standard search API is not always reliable in selfbots without indexing
         async for msg in channel.history(limit=limit * 2):  # Fetch double to filter
-            if query in msg.content.lower():
-                messages.append(f"{msg.author.name}: {msg.content}")
+            # Search in content AND embed text
+            search_text = (msg.content or "").lower()
+            for embed in msg.embeds:
+                search_text += " " + format_embed(embed).lower()
+
+            if query in search_text:
+                msg_parts = [f"{msg.author.name}:"]
+                if msg.content:
+                    msg_parts.append(msg.content)
+                for embed in msg.embeds:
+                    embed_text = format_embed(embed)
+                    if embed_text:
+                        msg_parts.append(f"[Embed]: {embed_text}")
+                messages.append(" ".join(msg_parts))
                 if len(messages) >= limit:
                     break
 
