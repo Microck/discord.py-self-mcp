@@ -91,11 +91,14 @@ python3 scripts/dcli.py pin-message --channel CHANNEL_ID --message MESSAGE_ID
 
 #### Create Thread
 ```bash
-# Create thread from message
+# Create thread from message (in text channel)
 python3 scripts/dcli.py create-thread --channel CHANNEL_ID --name "Thread Name" --message MESSAGE_ID
 
-# Create standalone thread
+# Create standalone thread (in text channel)
 python3 scripts/dcli.py create-thread --channel CHANNEL_ID --name "Thread Name"
+
+# Create thread in forum channel (with initial content)
+python3 scripts/dcli.py create-thread --channel FORUM_CHANNEL_ID --name "Thread Name" --content "Initial post content"
 ```
 
 #### Read Messages
@@ -116,6 +119,8 @@ python3 scripts/dcli.py list-guilds
 ```bash
 python3 scripts/dcli.py list-channels --guild GUILD_ID
 ```
+
+**Note**: `list-channels` may not return Forum Channels. To find a Forum Channel ID, use `get-thread-info` on any thread in that forum (see [Working with Forum Channels](#working-with-forum-channels)).
 
 #### List All Threads in Guild
 ```bash
@@ -171,6 +176,8 @@ python3 scripts/dcli.py read-thread --thread THREAD_ID --after "4h"
 python3 scripts/dcli.py get-thread-info --thread THREAD_ID
 ```
 
+**Useful for**: Finding the parent channel (forum) ID of a thread via the `Parent ID` field.
+
 #### Archive/Unarchive Thread
 ```bash
 # Archive thread
@@ -214,6 +221,34 @@ Commands that support `--after` parameter accept the following formats:
 - **Process Management**: Built-in commands to manage the daemon lifecycle
 - **Socket Communication**: Client and daemon communicate via Unix socket at `/tmp/discord-cli-daemon.sock`
 - **Rate Limiting**: Respected automatically by the underlying discord.py library
+
+## Working with Forum Channels
+
+Forum Channels are special channels where all conversations happen in threads. To interact with them:
+
+### Finding a Forum Channel ID
+
+Since `list-channels` may not show Forum Channels, use this workaround:
+
+```bash
+# 1. List threads to find one in the forum you're looking for
+python3 scripts/dcli.py list-guild-threads --guild GUILD_ID
+
+# 2. Get the thread's info to find its parent (forum) channel ID
+python3 scripts/dcli.py get-thread-info --thread THREAD_ID
+# Output will show "Parent ID: <forum_channel_id>"
+```
+
+### Creating Threads in Forum Channels
+
+Forum channels require an initial message when creating a thread:
+
+```bash
+python3 scripts/dcli.py create-thread \
+  --channel FORUM_CHANNEL_ID \
+  --name "Thread Title" \
+  --content "This is the initial post content"
+```
 
 ## Troubleshooting
 
