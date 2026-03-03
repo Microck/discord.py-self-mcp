@@ -14,7 +14,10 @@
     "index.js",
     "setup-wizard.js",
     "scripts/postinstall.js",
-    "server.json"
+    "scripts/dcli.py",
+    "scripts/daemon.py",
+    "server.json",
+    "SKILL.md"
   ],
   "keywords": [
     "mcp",
