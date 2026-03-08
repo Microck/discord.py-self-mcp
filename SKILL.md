@@ -54,6 +54,34 @@ source venv/bin/activate  # Linux/Mac
 
 All commands are executed via local `scripts/dcli.py`:
 
+### Discrawl MCP Tools
+
+This server also exposes dedicated MCP tools to run local `discrawl` commands:
+
+- `run_discrawl` (generic command runner)
+- `discrawl_doctor`
+- `discrawl_status`
+- `discrawl_sync`
+- `discrawl_search`
+- `discrawl_messages`
+- `discrawl_mentions`
+
+Use `DISCRAWL_BIN` if `discrawl` is not in PATH:
+
+```bash
+DISCRAWL_BIN=/absolute/path/to/discrawl
+```
+
+Example MCP payloads:
+
+```json
+{"command":"status","config_path":"~/.discrawl/config.toml"}
+```
+
+```json
+{"guild":"1234567890","since":"2026-03-01T00:00:00Z","full":true,"config_path":"~/.discrawl/config.toml"}
+```
+
 ### Daemon Management
 
 ```bash

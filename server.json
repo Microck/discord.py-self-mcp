@@ -35,6 +35,12 @@
           "format": "string",
           "isRequired": false,
           "secret": true
+        },
+        {
+          "name": "DISCRAWL_BIN",
+          "description": "Optional path to discrawl executable for the run_discrawl MCP tool.",
+          "format": "string",
+          "isRequired": false
         }
       ],
       "transport": {
