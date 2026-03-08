@@ -195,6 +195,40 @@ powered by the robust `discord.py-self` library.
 | **invites** | 3 | create_invite, list_invites, delete_invite |
 | **profile** | 1 | edit_profile |
 | **reactions** | 2 | add_reaction, remove_reaction |
+| **discrawl** | 7 | run_discrawl, discrawl_doctor, discrawl_status, discrawl_sync, discrawl_search, discrawl_messages, discrawl_mentions |
+
+### discrawl integration
+
+Use `run_discrawl` to execute local `discrawl` commands directly from MCP.
+Use typed tools for common operations (`discrawl_sync`, `discrawl_search`, `discrawl_messages`, etc.) when you want structured params.
+
+Example tool call payload:
+
+```json
+{
+  "command": "sync",
+  "args": ["--guild", "1234567890", "--since", "2026-03-01T00:00:00Z"],
+  "config_path": "~/.discrawl/config.toml"
+}
+```
+
+Typed tool payload example:
+
+```json
+{
+  "tool": "discrawl_sync",
+  "args": {
+    "guild": "1234567890",
+    "since": "2026-03-01T00:00:00Z",
+    "full": true,
+    "config_path": "~/.discrawl/config.toml"
+  }
+}
+```
+
+Optional env var:
+
+- `DISCRAWL_BIN` - custom path to discrawl executable (defaults to `discrawl` in `PATH`)
 
 ### comparison
 
@@ -294,6 +328,7 @@ discord_py_self_mcp/
 │   └── solver.py
 └── tools/
     ├── channels.py
+    ├── discrawl.py
     ├── guilds.py
     ├── interactions.py
     ├── invites.py
