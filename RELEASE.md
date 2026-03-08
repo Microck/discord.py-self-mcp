@@ -1,6 +1,22 @@
 # Release
 
-## Checklist
+## Automated npm release (recommended)
+
+- Workflow: `.github/workflows/release.yml`
+- Trigger: every push to `master`
+- Versioning: `semantic-release` using Conventional Commit messages
+- Publishes to npm and updates these files in the release commit:
+  - `CHANGELOG.md`
+  - `package.json`
+  - `package-lock.json`
+  - `server.json`
+  - `pyproject.toml`
+
+### Required GitHub secret
+
+- `NPM_TOKEN` with publish access to `discord-selfbot-mcp`
+
+## Manual Checklist
 
 - Versions match:
   - `package.json`
@@ -12,7 +28,7 @@
   - `python3 -m compileall -q discord_py_self_mcp`
   - `npm pack --dry-run`
 
-## Publish (npm)
+## Manual Publish (npm)
 
 ```bash
 npm whoami
