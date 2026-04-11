@@ -118,7 +118,13 @@ async def add_role(arguments: dict):
         role_id = int(arguments["role_id"])
         
         guild = client.get_guild(guild_id)
+        if not guild:
+            return [TextContent(type="text", text="Guild not found")]
+
         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
+        if not member:
+            return [TextContent(type="text", text="Member not found")]
+
         role = guild.get_role(role_id)
         
         if not role:
@@ -149,7 +155,13 @@ async def remove_role(arguments: dict):
         role_id = int(arguments["role_id"])
         
         guild = client.get_guild(guild_id)
+        if not guild:
+            return [TextContent(type="text", text="Guild not found")]
+
         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
+        if not member:
+            return [TextContent(type="text", text="Member not found")]
+
         role = guild.get_role(role_id)
         
         if not role:

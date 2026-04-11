@@ -16,6 +16,8 @@ dependencies = [
     "mcp",
     "python-dotenv",
     "playwright",
+    "hcaptcha-challenger[playwright]",
+    "loguru",
     "audioop-lts; python_version >= '3.13'",
     "camoufox[geoip]",
     "tls-client",
@@ -27,7 +29,17 @@ dependencies = [
     "requests"
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest>=9.0",
+    "pytest-asyncio>=1.0",
+]
+
 [project.scripts]
 discord-py-self-mcp = "discord_py_self_mcp.main:main"
 discord-py-self-mcp-setup = "discord_py_self_mcp.setup:main"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"

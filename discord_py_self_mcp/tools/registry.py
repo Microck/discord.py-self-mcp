@@ -26,7 +26,10 @@ class ToolRegistry:
     async def call_tool(self, name: str, arguments: dict) -> list[TextContent | ImageContent | EmbeddedResource]:
         handler = self.handlers.get(name)
         if not handler:
-            raise ValueError(f"Tool {name} not found")
+            available_tools = ", ".join(sorted(self.handlers))
+            raise ValueError(
+                f"Unknown tool '{name}'. Available tools: {available_tools}"
+            )
         return await handler(arguments)
 
 registry = ToolRegistry()
