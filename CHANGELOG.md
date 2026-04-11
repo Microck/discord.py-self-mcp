@@ -1,3 +1,11 @@
+## [1.2.3](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.2...v1.2.3) (2026-04-11)
+
+
+### Bug Fixes
+
+* **server:** harden startup and role handling ([c4a6b31](https://github.com/Microck/discord.py-self-mcp/commit/c4a6b315c3f66866227d4135dab8bcd2670fa30e))
+* **server:** harden startup and role handling ([7ba517c](https://github.com/Microck/discord.py-self-mcp/commit/7ba517c5514b4236d9bde2eed79fb3efc8ad624c))
+
 ## [1.2.2](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.1...v1.2.2) (2026-04-11)
 
 
