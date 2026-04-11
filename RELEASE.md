@@ -15,10 +15,11 @@
 
 ### Required setup
 
-- In npm package settings for `discord-selfbot-mcp`, add this repo/workflow as a trusted publisher
+- Preferred: in npm package settings for `discord-selfbot-mcp`, add this repo/workflow as a trusted publisher
+- Current fallback: keep the `NPM_TOKEN` GitHub secret set until trusted publishing is configured and verified
 - Workflow file must stay `.github/workflows/release.yml`
 - Branch must stay `master` unless the npm trusted publisher entry is updated too
-- No `NPM_TOKEN` secret is required for the automated npm publish path
+- Once trusted publishing is configured and a release succeeds through OIDC, remove the `NPM_TOKEN` fallback
 
 ## Manual Checklist
 
