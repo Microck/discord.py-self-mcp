@@ -66,7 +66,8 @@ This server also exposes dedicated MCP tools to run local `discrawl` commands:
 - `discrawl_messages`
 - `discrawl_mentions`
 
-Use `DISCRAWL_BIN` if `discrawl` is not in PATH:
+By default this MCP prefers a sibling fork build at `../discrawl-self/bin/discrawl`, then falls back to `discrawl` in `PATH`.
+Use `DISCRAWL_BIN` if you want to override that:
 
 ```bash
 DISCRAWL_BIN=/absolute/path/to/discrawl

@@ -38,7 +38,7 @@
         },
         {
           "name": "DISCRAWL_BIN",
-          "description": "Optional path to discrawl executable for the run_discrawl MCP tool.",
+          "description": "Optional path to discrawl executable for the run_discrawl MCP tool. Overrides the default preference for ../discrawl-self/bin/discrawl.",
           "format": "string",
           "isRequired": false
         }

@@ -10,6 +10,7 @@ from .registry import registry
 
 DEFAULT_TIMEOUT_SECONDS = 180
 MAX_OUTPUT_CHARS = 12000
+DEFAULT_DISCRAWL_BINARY = "discrawl"
 
 
 Response = list[TextContent | ImageContent | EmbeddedResource]
@@ -20,9 +21,25 @@ def _text(value: str) -> Response:
     return output
 
 
+def _default_discrawl_candidates() -> list[str]:
+    repo_root = Path(__file__).resolve().parents[2]
+    workspace_dir = repo_root.parent
+    return [
+        str(workspace_dir / "discrawl-self" / "bin" / "discrawl"),
+        DEFAULT_DISCRAWL_BINARY,
+    ]
+
+
 def _resolve_discrawl_binary(arguments: dict) -> str:
-    candidate = arguments.get("binary") or os.getenv("DISCRAWL_BIN") or "discrawl"
-    return str(candidate).strip()
+    explicit = str(arguments.get("binary") or os.getenv("DISCRAWL_BIN") or "").strip()
+    if explicit:
+        return explicit
+
+    for candidate in _default_discrawl_candidates():
+        if _binary_exists(candidate):
+            return candidate
+
+    return DEFAULT_DISCRAWL_BINARY
 
 
 def _truncate_output(value: str) -> str:
@@ -64,7 +81,7 @@ async def _run_discrawl(
         return _text(
             (
                 f"Could not find discrawl binary: {binary}\n"
-                "Install discrawl or set DISCRAWL_BIN to the executable path."
+                "Build discrawl-self at ../discrawl-self/bin/discrawl or set DISCRAWL_BIN to the executable path."
             )
         )
 

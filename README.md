@@ -201,6 +201,7 @@ powered by the robust `discord.py-self` library.
 
 Use `run_discrawl` to execute local `discrawl` commands directly from MCP.
 Use typed tools for common operations (`discrawl_sync`, `discrawl_search`, `discrawl_messages`, etc.) when you want structured params.
+This fork prefers a sibling checkout at `../discrawl-self/bin/discrawl` when present, then falls back to `discrawl` in `PATH`.
 
 Example tool call payload:
 
@@ -228,7 +229,7 @@ Typed tool payload example:
 
 Optional env var:
 
-- `DISCRAWL_BIN` - custom path to discrawl executable (defaults to `discrawl` in `PATH`)
+- `DISCRAWL_BIN` - custom path to discrawl executable. This overrides the default fork-first lookup.
 
 ### comparison
 
