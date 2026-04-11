@@ -1,3 +1,12 @@
+## [1.2.2](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.1...v1.2.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* **release:** align node auth env ([16e899e](https://github.com/Microck/discord.py-self-mcp/commit/16e899e32a9b75469225bc3b49f55c7c686b921d))
+* **release:** keep npm token fallback ([9b59b48](https://github.com/Microck/discord.py-self-mcp/commit/9b59b485885b6bf1b1690e7d61e189b80cea9083))
+* **release:** use npm trusted publishing ([892102d](https://github.com/Microck/discord.py-self-mcp/commit/892102d63037539bc189eb1cbc04660464d4815b))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
