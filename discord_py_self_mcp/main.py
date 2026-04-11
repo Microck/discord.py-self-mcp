@@ -33,8 +33,11 @@ async def call_tool(
 async def run_app():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
-        logger.error("DISCORD_TOKEN environment variable not set")
-        return
+        sys.stderr.write(
+            "Error: DISCORD_TOKEN is not set. Configure it in your MCP client or run "
+            "`discord-py-self-mcp-setup`.\n"
+        )
+        raise SystemExit(1)
 
     logger.info(f"Starting Discord connection...")
     logger.info(

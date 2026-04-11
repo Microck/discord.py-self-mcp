@@ -51,7 +51,7 @@ async def send_friend_request(arguments: dict):
                         break
                 else:
                     # New username system or no discrim provided
-                    if user.discriminator == "0" or not discriminator:
+                    if user.discriminator == "0":
                         target_user = user
                         break
         

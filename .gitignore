@@ -59,6 +59,7 @@ mcp-server-error.log
 *_LOG.md
 *_STATUS.md
 test_*.py
+!tests/test_*.py
 ralph-loop.local.md
 AGENTS.md
 *.tgz
