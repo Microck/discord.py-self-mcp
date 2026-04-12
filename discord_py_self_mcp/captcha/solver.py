@@ -2,9 +2,7 @@ import os
 import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
-import hcaptcha_challenger
 from hcaptcha_challenger.agent.challenger import AgentV
-from hcaptcha_challenger import models
 from loguru import logger
 
 
