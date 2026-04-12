@@ -1,16 +1,16 @@
-import os
-import asyncio
-import discord
-import inspect
 import importlib
-from typing import Dict, Any, Optional
-from google.protobuf import json_format
+import inspect
+import os
+from typing import Any, Dict
+
+import discord
 from dotenv import load_dotenv
+from google.protobuf import json_format
+
 from discord_py_self_mcp.captcha.solver import HCaptchaSolver
 from discord_py_self_mcp.rate_limiter import (
-    RateLimiter,
     RateLimitConfig,
-    get_rate_limiter,
+    RateLimiter,
 )
 
 load_dotenv()
@@ -91,7 +91,7 @@ class SelfBot(discord.Client):
 
 async def solve_captcha() -> str:
     global captcha_solver
-    print(f"[CAPTCHA] Triggered")
+    print("[CAPTCHA] Triggered")
 
     gemini_api_key = os.getenv("GEMINI_API_KEY")
     if not gemini_api_key:

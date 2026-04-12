@@ -1,7 +1,8 @@
-import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from .registry import registry
+
 
 @registry.register(
     name="list_friends",
@@ -16,7 +17,7 @@ async def list_friends(arguments: dict):
         friends = client.friends
         if not friends:
              return [TextContent(type="text", text="No friends found (or list is empty)")]
-        
+
         friend_list = [f"{f.name}#{f.discriminator} ({f.id})" for f in friends]
         return [TextContent(type="text", text="\n".join(friend_list))]
     except AttributeError:
@@ -40,7 +41,7 @@ async def send_friend_request(arguments: dict):
     try:
         username = arguments["username"]
         discriminator = arguments.get("discriminator")
-        
+
         # 1. Search in local cache (users shared in guilds)
         target_user = None
         for user in client.users:
@@ -54,7 +55,7 @@ async def send_friend_request(arguments: dict):
                     if user.discriminator == "0":
                         target_user = user
                         break
-        
+
         if target_user:
             await target_user.send_friend_request()
             return [TextContent(type="text", text=f"Sent friend request to {target_user.name} (found in cache)")]

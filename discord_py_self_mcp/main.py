@@ -1,10 +1,12 @@
 import asyncio
-import os
 import logging
+import os
 import sys
+
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
+from mcp.types import EmbeddedResource, ImageContent, TextContent, Tool
+
 from discord_py_self_mcp.bot import client
 from discord_py_self_mcp.tools import registry
 
@@ -39,14 +41,14 @@ async def run_app():
         )
         raise SystemExit(1)
 
-    logger.info(f"Starting Discord connection...")
+    logger.info("Starting Discord connection...")
     logger.info(
         f"Token (masked): {token[:15]}...{token[-5:] if len(token) > 20 else token}"
     )
 
     # Start Discord client in background
     # We don't await it so it doesn't block the MCP server
-    discord_task = asyncio.create_task(client.start(token))
+    asyncio.create_task(client.start(token))
 
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())

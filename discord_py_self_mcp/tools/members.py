@@ -1,7 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from .registry import registry
+
 
 @registry.register(
     name="kick_member",
@@ -21,15 +23,15 @@ async def kick_member(arguments: dict):
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
         reason = arguments.get("reason")
-        
+
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
-            
+
         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
         if not member:
             return [TextContent(type="text", text="Member not found")]
-            
+
         await member.kick(reason=reason)
         return [TextContent(type="text", text=f"Kicked member {member.name}")]
     except Exception as e:
@@ -55,14 +57,14 @@ async def ban_member(arguments: dict):
         user_id = int(arguments["user_id"])
         reason = arguments.get("reason")
         delete_days = arguments.get("delete_message_days", 0)
-        
+
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
-            
+
         # Can ban user even if not in guild
         user = discord.Object(id=user_id)
-        
+
         await guild.ban(user, reason=reason, delete_message_days=delete_days)
         return [TextContent(type="text", text=f"Banned user {user_id}")]
     except Exception as e:
@@ -86,13 +88,13 @@ async def unban_member(arguments: dict):
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
         reason = arguments.get("reason")
-        
+
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
-            
+
         user = discord.Object(id=user_id)
-        
+
         await guild.unban(user, reason=reason)
         return [TextContent(type="text", text=f"Unbanned user {user_id}")]
     except Exception as e:
@@ -116,7 +118,7 @@ async def add_role(arguments: dict):
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
         role_id = int(arguments["role_id"])
-        
+
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
@@ -126,10 +128,10 @@ async def add_role(arguments: dict):
             return [TextContent(type="text", text="Member not found")]
 
         role = guild.get_role(role_id)
-        
+
         if not role:
             return [TextContent(type="text", text="Role not found")]
-            
+
         await member.add_roles(role)
         return [TextContent(type="text", text=f"Added role {role.name} to {member.name}")]
     except Exception as e:
@@ -153,7 +155,7 @@ async def remove_role(arguments: dict):
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
         role_id = int(arguments["role_id"])
-        
+
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
@@ -163,10 +165,10 @@ async def remove_role(arguments: dict):
             return [TextContent(type="text", text="Member not found")]
 
         role = guild.get_role(role_id)
-        
+
         if not role:
             return [TextContent(type="text", text="Role not found")]
-            
+
         await member.remove_roles(role)
         return [TextContent(type="text", text=f"Removed role {role.name} from {member.name}")]
     except Exception as e:

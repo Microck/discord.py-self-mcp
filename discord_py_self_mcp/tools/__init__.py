@@ -1,14 +1,16 @@
+from . import (
+    channels,
+    discrawl,
+    guilds,
+    interactions,
+    invites,
+    members,
+    messages,
+    presence,
+    profile,
+    reactions,
+    relationships,
+    threads,
+    voice,
+)
 from .registry import registry
-from . import messages
-from . import guilds
-from . import channels
-from . import relationships
-from . import voice
-from . import presence
-from . import interactions
-from . import threads
-from . import reactions
-from . import members
-from . import invites
-from . import profile
-from . import discrawl

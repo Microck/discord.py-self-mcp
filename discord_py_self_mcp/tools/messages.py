@@ -1,8 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
-from .embed import format_embed
+
 from ..bot import client
+from .embed import format_embed
+from .registry import registry
 
 
 @registry.register(

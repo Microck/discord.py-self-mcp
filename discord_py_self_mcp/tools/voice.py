@@ -1,7 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from .registry import registry
+
 
 @registry.register(
     name="join_voice_channel",
@@ -20,7 +22,7 @@ async def join_voice_channel(arguments: dict):
         channel = client.get_channel(channel_id)
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
-        
+
         if not isinstance(channel, discord.VoiceChannel):
              return [TextContent(type="text", text="Channel is not a voice channel")]
 
@@ -46,7 +48,7 @@ async def leave_voice_channel(arguments: dict):
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
-        
+
         if guild.voice_client:
             await guild.voice_client.disconnect()
             return [TextContent(type="text", text=f"Left voice channel in {guild.name}")]

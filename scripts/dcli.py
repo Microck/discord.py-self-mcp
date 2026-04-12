@@ -28,11 +28,11 @@ Time formats for --after:
   2024-01-01T00:00:00   - ISO datetime
   1704067200            - Unix timestamp
 """
-import os
-import sys
 import json
+import os
 import socket
 import subprocess
+import sys
 from pathlib import Path
 
 SOCKET_PATH = Path("/tmp/discord-cli-daemon.sock")
@@ -76,21 +76,21 @@ def send_request(command_data, timeout=30):
     """Send request to daemon via Unix socket"""
     if not is_daemon_running():
         start_daemon()
-    
+
     if not SOCKET_PATH.exists():
         print("Error: Daemon socket not found. Is daemon running?")
         sys.exit(1)
-    
+
     try:
         client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         client.settimeout(timeout)
         client.connect(str(SOCKET_PATH))
-        
+
         # Send request
         request = json.dumps(command_data).encode()
         client.sendall(request)
         client.shutdown(socket.SHUT_WR)
-        
+
         # Receive response
         response = b""
         while True:
@@ -98,7 +98,7 @@ def send_request(command_data, timeout=30):
             if not chunk:
                 break
             response += chunk
-        
+
         client.close()
         return json.loads(response.decode())
     except socket.timeout:
@@ -113,10 +113,10 @@ def format_messages(messages, reverse=True, use_local_timezone=True):
     """Format messages for display"""
     import zoneinfo
     from datetime import datetime
-    
+
     if reverse:
         messages = list(reversed(messages))
-    
+
     # Get local timezone (default to UTC if not available)
     local_tz = None
     if use_local_timezone:
@@ -124,7 +124,7 @@ def format_messages(messages, reverse=True, use_local_timezone=True):
             local_tz = zoneinfo.ZoneInfo("localtime") if hasattr(zoneinfo, 'ZoneInfo') else None
         except Exception:
             local_tz = None
-    
+
     for msg in messages:
         author = msg.get("author", "Unknown")
         content = msg.get("content", "") if msg.get("content") else "[No content]"
@@ -147,11 +147,11 @@ def cmd_send_message(channel_id, content):
         "command": "send_message",
         "args": {"channel_id": channel_id, "content": content}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print(f"✓ Message sent (ID: {result.get('message_id')})")
 
 
@@ -160,16 +160,16 @@ def cmd_read_messages(channel_id, limit, after=None):
     args = {"channel_id": channel_id, "limit": limit}
     if after:
         args["after"] = after
-    
+
     result = send_request({
         "command": "read_messages",
         "args": args
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     messages = result.get("messages", [])
     print(f"✓ Retrieved {len(messages)} messages:")
     print("-" * 60)
@@ -182,11 +182,11 @@ def cmd_list_guilds():
         "command": "list_guilds",
         "args": {}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     guilds = result.get("guilds", [])
     print(f"✓ Connected. Found {len(guilds)} guilds:")
     print("-" * 60)
@@ -201,11 +201,11 @@ def cmd_list_channels(guild_id):
         "command": "list_channels",
         "args": {"guild_id": guild_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     channels = result.get("channels", [])
     print(f"✓ Channels ({len(channels)}):")
     print("-" * 60)
@@ -219,11 +219,11 @@ def cmd_list_threads(channel_id, archived):
         "command": "list_threads",
         "args": {"channel_id": channel_id, "archived": archived}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     threads = result.get("threads", [])
     print(f"✓ Threads ({len(threads)}):")
     print("-" * 60)
@@ -237,11 +237,11 @@ def cmd_list_guild_threads(guild_id):
         "command": "list_guild_threads",
         "args": {"guild_id": guild_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     threads = result.get("threads", [])
     print(f"✓ Active threads in guild ({len(threads)}):")
     print("-" * 60)
@@ -255,11 +255,11 @@ def cmd_list_recent_threads(guild_id, within_hours):
         "command": "list_recent_threads",
         "args": {"guild_id": guild_id, "within_hours": within_hours}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     threads = result.get("threads", [])
     print(f"✓ Recent threads in last {within_hours}h ({len(threads)}):")
     print("-" * 60)
@@ -282,21 +282,21 @@ def cmd_read_recent_threads(guild_id, within_hours, limit_per_thread):
         "command": "read_recent_threads",
         "args": {"guild_id": guild_id, "within_hours": within_hours, "limit_per_thread": limit_per_thread}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     threads = result.get("threads", [])
     total = result.get("total_messages", 0)
     print(f"✓ Recent threads ({len(threads)}) with {total} messages in last {within_hours}h:")
     print("=" * 60)
-    
+
     for thread in threads:
         print(f"\n📁 {thread['name']} (ID: {thread['id']}, Parent: #{thread['parent']})")
         print("-" * 60)
         format_messages(thread.get("messages", []), reverse=False)
-    
+
     print("\n" + "=" * 60)
 
 
@@ -305,16 +305,16 @@ def cmd_read_thread(thread_id, limit, after=None):
     args = {"thread_id": thread_id, "limit": limit}
     if after:
         args["after"] = after
-    
+
     result = send_request({
         "command": "read_thread",
         "args": args
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     messages = result.get("messages", [])
     thread_name = result.get("thread_name", "Unknown")
     print(f"✓ Retrieved {len(messages)} messages from thread '{thread_name}':")
@@ -328,11 +328,11 @@ def cmd_delete_message(channel_id, message_id):
         "command": "delete_message",
         "args": {"channel_id": channel_id, "message_id": message_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print(f"✓ Message {message_id} deleted successfully")
 
 
@@ -342,11 +342,11 @@ def cmd_pin_message(channel_id, message_id):
         "command": "pin_message",
         "args": {"channel_id": channel_id, "message_id": message_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print(f"✓ Message {message_id} pinned successfully")
 
 
@@ -356,11 +356,11 @@ def cmd_get_thread_info(thread_id):
         "command": "get_thread_info",
         "args": {"thread_id": thread_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print("✓ Thread Information:")
     print("-" * 60)
     print(f"  Name: {result.get('name')}")
@@ -381,11 +381,11 @@ def cmd_archive_thread(thread_id, unarchive=False):
         "command": "archive_thread",
         "args": {"thread_id": thread_id, "unarchive": unarchive}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     action = "unarchived" if unarchive else "archived"
     print(f"✓ Thread {result.get('thread_name')} {action} successfully")
 
@@ -396,11 +396,11 @@ def cmd_join_thread(thread_id):
         "command": "join_thread",
         "args": {"thread_id": thread_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print(f"✓ Joined thread {result.get('thread_name')} successfully")
 
 
@@ -410,11 +410,11 @@ def cmd_leave_thread(thread_id):
         "command": "leave_thread",
         "args": {"thread_id": thread_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print(f"✓ Left thread {result.get('thread_name')} successfully")
 
 
@@ -424,11 +424,11 @@ def cmd_user_info(user_id):
         "command": "user_info",
         "args": {"user_id": user_id}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
+
     print("✓ User Information:")
     print("-" * 60)
     print(f"  Name: {result.get('name')}")
@@ -442,12 +442,12 @@ def cmd_create_thread(channel_id, name, message_id, content=None):
         "command": "create_thread",
         "args": {"channel_id": channel_id, "name": name, "message_id": message_id, "content": content}
     })
-    
+
     if "error" in result:
         print(f"Error: {result['error']}")
         return
-    
-    print(f"✓ Thread created successfully!")
+
+    print("✓ Thread created successfully!")
     print(f"  Name: {result.get('thread_name')}")
     print(f"  ID: {result.get('thread_id')}")
 
@@ -456,7 +456,7 @@ def cmd_daemon(action):
     """Manage daemon process"""
     script_dir = Path(__file__).parent
     daemon_script = script_dir / "daemon.py"
-    
+
     if action == "start":
         if is_daemon_running():
             print("Daemon is already running")
@@ -475,58 +475,58 @@ def cmd_daemon(action):
 
 def main():
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Discord CLI Tool (Client)")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
-    
+
     # daemon command
     daemon_parser = subparsers.add_parser("daemon", help="Manage daemon process")
     daemon_parser.add_argument("action", choices=["start", "stop", "restart", "status"])
-    
+
     # send-message command
     send_parser = subparsers.add_parser("send-message", help="Send a message")
     send_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
     send_parser.add_argument("--content", "-m", required=True, help="Message content")
-    
+
     # read-messages command
     read_parser = subparsers.add_parser("read-messages", help="Read messages from channel")
     read_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
     read_parser.add_argument("--limit", "-l", type=int, default=10, help="Number of messages")
     read_parser.add_argument("--after", "-a", type=str, help="Only show messages after this time (e.g., '4h', '30m', '2024-01-01T00:00:00')")
-    
+
     # list-guilds command
     subparsers.add_parser("list-guilds", help="List all guilds")
-    
+
     # list-channels command
     channels_parser = subparsers.add_parser("list-channels", help="List channels in a guild")
     channels_parser.add_argument("--guild", "-g", required=True, type=int, help="Guild ID")
-    
+
     # list-threads command
     threads_parser = subparsers.add_parser("list-threads", help="List threads in a channel")
     threads_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
     threads_parser.add_argument("--archived", "-a", action="store_true", help="Include archived threads")
-    
+
     # list-guild-threads command
     guild_threads_parser = subparsers.add_parser("list-guild-threads", help="List all active threads in a guild")
     guild_threads_parser.add_argument("--guild", "-g", required=True, type=int, help="Guild ID")
-    
+
     # list-recent-threads command
     recent_threads_list_parser = subparsers.add_parser("list-recent-threads", help="List threads with recent activity")
     recent_threads_list_parser.add_argument("--guild", "-g", required=True, type=int, help="Guild ID")
     recent_threads_list_parser.add_argument("--within", "-w", type=int, default=24, help="Only show threads active within this many hours (default: 24)")
-    
+
     # read-recent-threads command
     recent_threads_parser = subparsers.add_parser("read-recent-threads", help="Read messages from all recently active threads")
     recent_threads_parser.add_argument("--guild", "-g", required=True, type=int, help="Guild ID")
     recent_threads_parser.add_argument("--within", "-w", type=int, default=4, help="Only read threads active within this many hours (default: 4)")
     recent_threads_parser.add_argument("--limit-per-thread", "-p", type=int, default=30, help="Max messages per thread (default: 30)")
-    
+
     # read-thread command
     read_thread_parser = subparsers.add_parser("read-thread", help="Read messages from a thread")
     read_thread_parser.add_argument("--thread", "-t", required=True, type=int, help="Thread ID")
     read_thread_parser.add_argument("--limit", "-l", type=int, default=50, help="Number of messages")
     read_thread_parser.add_argument("--after", "-a", type=str, help="Only show messages after this time (e.g., '4h', '30m', '2024-01-01T00:00:00')")
-    
+
     # delete-message command
     delete_msg_parser = subparsers.add_parser("delete-message", help="Delete a message")
     delete_msg_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
@@ -557,20 +557,20 @@ def main():
     # user-info command
     user_parser = subparsers.add_parser("user-info", help="Get user information")
     user_parser.add_argument("--user", "-u", type=int, help="User ID (omit for self)")
-    
+
     # create-thread command
     create_thread_parser = subparsers.add_parser("create-thread", help="Create a new thread")
     create_thread_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
     create_thread_parser.add_argument("--name", "-n", help="Thread name")
     create_thread_parser.add_argument("--message", "-m", type=int, help="Message ID to create thread from")
     create_thread_parser.add_argument("--content", "-t", help="Content for forum thread (required for forum channels)")
-    
+
     args = parser.parse_args()
-    
+
     if not args.command:
         parser.print_help()
         sys.exit(1)
-    
+
     # Route commands
     if args.command == "daemon":
         cmd_daemon(args.action)

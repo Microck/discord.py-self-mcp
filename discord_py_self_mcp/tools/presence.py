@@ -1,7 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from .registry import registry
+
 
 @registry.register(
     name="set_status",
@@ -23,7 +25,7 @@ async def set_status(arguments: dict):
             "dnd": discord.Status.dnd,
             "invisible": discord.Status.invisible
         }
-        
+
         await client.change_presence(status=status_map[status_str])
         return [TextContent(type="text", text=f"Status set to {status_str}")]
     except Exception as e:
@@ -45,14 +47,14 @@ async def set_activity(arguments: dict):
     try:
         activity_type = arguments["type"]
         name = arguments["name"]
-        
+
         type_map = {
             "playing": discord.ActivityType.playing,
             "watching": discord.ActivityType.watching,
             "listening": discord.ActivityType.listening,
             "competing": discord.ActivityType.competing
         }
-        
+
         activity = discord.Activity(type=type_map[activity_type], name=name)
         await client.change_presence(activity=activity)
         return [TextContent(type="text", text=f"Activity set to {activity_type} {name}")]

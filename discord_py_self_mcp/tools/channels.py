@@ -1,7 +1,8 @@
-import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from .registry import registry
+
 
 @registry.register(
     name="create_channel",
@@ -60,7 +61,7 @@ async def delete_channel(arguments: dict):
         channel = client.get_channel(channel_id)
         if not channel:
              return [TextContent(type="text", text="Channel not found")]
-        
+
         await channel.delete()
         return [TextContent(type="text", text=f"Deleted channel {channel.name}")]
     except Exception as e:
@@ -83,11 +84,11 @@ async def list_channels(arguments: dict):
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
-        
+
         channels = []
         for channel in guild.channels:
             channels.append(f"{channel.name} ({channel.id}) - {channel.type}")
-            
+
         return [TextContent(type="text", text="\n".join(channels))]
     except Exception as e:
         return [TextContent(type="text", text=f"Error listing channels: {str(e)}")]
