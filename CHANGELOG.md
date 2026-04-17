@@ -1,3 +1,10 @@
+## [1.2.5](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.4...v1.2.5) (2026-04-17)
+
+
+### Bug Fixes
+
+* add attachment access for message media ([b270b61](https://github.com/Microck/discord.py-self-mcp/commit/b270b613c538e6ef9177b7caa2e954b32d3c73a7)), closes [#16](https://github.com/Microck/discord.py-self-mcp/issues/16)
+
 ## [1.2.4](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.3...v1.2.4) (2026-04-17)
 
 
