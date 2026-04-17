@@ -36,6 +36,7 @@ if not TOKEN:
     sys.exit(1)
 
 import discord
+from discord_py_self_mcp.tools.embed import serialize_message
 
 # Configuration
 PID_FILE = Path("/tmp/discord-cli-daemon.pid")
@@ -238,12 +239,7 @@ class DiscordDaemon:
             kwargs["after"] = after_dt
         
         async for msg in channel.history(**kwargs):
-            messages.append({
-                "id": msg.id,
-                "author": msg.author.name if msg.author else "Unknown",
-                "content": msg.clean_content if msg.clean_content else msg.content,
-                "created_at": msg.created_at.isoformat()
-            })
+            messages.append(serialize_message(msg))
         messages.reverse()
         return {"messages": messages}
     
@@ -287,12 +283,7 @@ class DiscordDaemon:
             kwargs["after"] = after_dt
         
         async for msg in thread.history(**kwargs):
-            messages.append({
-                "id": msg.id,
-                "author": msg.author.name if msg.author else "Unknown",
-                "content": msg.content,
-                "created_at": msg.created_at.isoformat()
-            })
+            messages.append(serialize_message(msg))
         messages.reverse()
         return {"messages": messages, "thread_name": thread.name}
     

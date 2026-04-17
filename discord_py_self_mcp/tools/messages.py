@@ -1,8 +1,12 @@
+import base64
+
 import discord
-from mcp.types import TextContent
+from mcp.types import BlobResourceContents, EmbeddedResource, ImageContent, TextContent
 from .registry import registry
-from .embed import format_embed
+from .embed import build_search_text, format_attachment, format_message_line
 from ..bot import client
+
+MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
 
 
 @registry.register(
@@ -78,15 +82,7 @@ async def read_messages(arguments: dict):
 
         messages = []
         async for msg in channel.history(limit=limit):
-            msg_parts = [f"{msg.author.name}:"]
-            if msg.content:
-                msg_parts.append(msg.content)
-            # Add embed text
-            for embed in msg.embeds:
-                embed_text = format_embed(embed)
-                if embed_text:
-                    msg_parts.append(f"[Embed]: {embed_text}")
-            messages.append(" ".join(msg_parts))
+            messages.append(format_message_line(msg))
 
         return [TextContent(type="text", text="\n".join(reversed(messages)))]
     except Exception as e:
@@ -132,20 +128,11 @@ async def search_messages(arguments: dict):
         messages = []
         # Basic filtering using history since standard search API is not always reliable in selfbots without indexing
         async for msg in channel.history(limit=limit * 2):  # Fetch double to filter
-            # Search in content AND embed text
-            search_text = (msg.content or "").lower()
-            for embed in msg.embeds:
-                search_text += " " + format_embed(embed).lower()
+            # Search in content, embeds, and attachment metadata
+            search_text = build_search_text(msg)
 
             if query in search_text:
-                msg_parts = [f"{msg.author.name}:"]
-                if msg.content:
-                    msg_parts.append(msg.content)
-                for embed in msg.embeds:
-                    embed_text = format_embed(embed)
-                    if embed_text:
-                        msg_parts.append(f"[Embed]: {embed_text}")
-                messages.append(" ".join(msg_parts))
+                messages.append(format_message_line(msg))
                 if len(messages) >= limit:
                     break
 
@@ -238,3 +225,131 @@ async def delete_message(arguments: dict):
         return [TextContent(type="text", text=f"Deleted message {message_id}")]
     except Exception as e:
         return [TextContent(type="text", text=f"Error deleting message: {str(e)}")]
+
+
+@registry.register(
+    name="get_message_attachments",
+    description=(
+        "Get attachment metadata for a message and optionally download attachment "
+        "content as MCP image/resource outputs"
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel_id": {"type": "string"},
+            "message_id": {"type": "string"},
+            "attachment_index": {
+                "type": "integer",
+                "description": "Optional zero-based attachment index to fetch",
+            },
+            "download_content": {
+                "type": "boolean",
+                "default": True,
+                "description": "When false, return only attachment metadata",
+            },
+            "max_bytes": {
+                "type": "integer",
+                "default": MAX_ATTACHMENT_BYTES_DEFAULT,
+                "description": "Skip downloads above this size",
+            },
+        },
+        "required": ["channel_id", "message_id"],
+    },
+)
+async def get_message_attachments(arguments: dict):
+    try:
+        channel_id = int(arguments["channel_id"])
+        message_id = int(arguments["message_id"])
+        attachment_index = arguments.get("attachment_index")
+        download_content = arguments.get("download_content", True)
+        max_bytes = int(arguments.get("max_bytes", MAX_ATTACHMENT_BYTES_DEFAULT))
+
+        channel = client.get_channel(channel_id)
+        if not channel:
+            try:
+                channel = await client.fetch_channel(channel_id)
+            except discord.NotFound:
+                return [TextContent(type="text", text="Channel not found")]
+            except discord.Forbidden:
+                return [TextContent(type="text", text="Access denied to channel")]
+
+        if not channel:
+            return [TextContent(type="text", text="Channel not found")]
+        if not isinstance(channel, discord.abc.Messageable):
+            return [TextContent(type="text", text="Channel is not messageable")]
+
+        message = await channel.fetch_message(message_id)
+        attachments = list(message.attachments)
+        if not attachments:
+            return [TextContent(type="text", text="Message has no attachments")]
+
+        if attachment_index is not None:
+            if attachment_index < 0 or attachment_index >= len(attachments):
+                return [
+                    TextContent(
+                        type="text",
+                        text=(
+                            f"Attachment index {attachment_index} is out of range for "
+                            f"{len(attachments)} attachment(s)"
+                        ),
+                    )
+                ]
+            indexed_attachments = [(attachment_index, attachments[attachment_index])]
+        else:
+            indexed_attachments = list(enumerate(attachments))
+
+        response = [
+            TextContent(
+                type="text",
+                text="\n".join(
+                    format_attachment(attachment, index=index)
+                    for index, attachment in indexed_attachments
+                ),
+            )
+        ]
+
+        if not download_content:
+            return response
+
+        for index, attachment in indexed_attachments:
+            if attachment.size is not None and attachment.size > max_bytes:
+                response.append(
+                    TextContent(
+                        type="text",
+                        text=(
+                            f"Skipped attachment {index} ({attachment.filename}) because "
+                            f"size={attachment.size} exceeds max_bytes={max_bytes}"
+                        ),
+                    )
+                )
+                continue
+
+            blob = await attachment.read()
+            encoded = base64.b64encode(blob).decode("ascii")
+            mime_type = attachment.content_type or "application/octet-stream"
+
+            if mime_type.startswith("image/"):
+                response.append(
+                    ImageContent(type="image", data=encoded, mimeType=mime_type)
+                )
+            else:
+                response.append(
+                    EmbeddedResource(
+                        type="resource",
+                        resource=BlobResourceContents(
+                            uri=attachment.url,
+                            mimeType=mime_type,
+                            blob=encoded,
+                        ),
+                    )
+                )
+
+        return response
+    except discord.NotFound:
+        return [TextContent(type="text", text="Message not found")]
+    except discord.Forbidden:
+        return [TextContent(type="text", text="Access denied to message")]
+    except Exception as e:
+        return [
+            TextContent(type="text", text=f"Error getting message attachments: {str(e)}")
+        ]

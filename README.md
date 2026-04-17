@@ -184,7 +184,7 @@ powered by the robust `discord.py-self` library.
 | category | tools | description |
 |----------|-------|-------------|
 | **system** | 2 | get_user_info, list_guilds |
-| **messages** | 5 | send_message, read_messages, search_messages, edit_message, delete_message |
+| **messages** | 6 | send_message, read_messages, search_messages, edit_message, delete_message, get_message_attachments |
 | **channels** | 3 | create_channel, delete_channel, list_channels |
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
@@ -230,6 +230,11 @@ Typed tool payload example:
 Optional env var:
 
 - `DISCRAWL_BIN` - custom path to discrawl executable. This overrides the default fork-first lookup.
+
+### attachment access
+
+Use `get_message_attachments` when a message contains files or images you need to inspect directly.
+It returns attachment metadata for the target message and can stream image/file content back through MCP outputs.
 
 ### comparison
 

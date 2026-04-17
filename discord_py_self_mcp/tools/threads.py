@@ -1,6 +1,7 @@
 import discord
 from mcp.types import TextContent
 from .registry import registry
+from .embed import format_message_line
 from ..bot import client
 
 @registry.register(
@@ -92,7 +93,7 @@ async def read_thread_messages(arguments: dict):
         
         messages = []
         async for msg in thread.history(limit=limit):
-            messages.append(f"{msg.author.name}: {msg.content}")
+            messages.append(format_message_line(msg))
         
         if not messages:
             return [TextContent(type="text", text="No messages found in thread")]

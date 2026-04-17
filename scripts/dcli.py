@@ -128,6 +128,7 @@ def format_messages(messages, reverse=True, use_local_timezone=True):
     for msg in messages:
         author = msg.get("author", "Unknown")
         content = msg.get("content", "") if msg.get("content") else "[No content]"
+        attachments = msg.get("attachments", [])
         created_at = msg.get("created_at", "")
         if created_at:
             # Parse ISO format and convert to local timezone
@@ -138,6 +139,18 @@ def format_messages(messages, reverse=True, use_local_timezone=True):
                 created_at = dt.strftime('%Y-%m-%d %H:%M')
             except Exception:
                 pass
+        if attachments:
+            attachment_lines = []
+            for index, attachment in enumerate(attachments):
+                details = [f"[Attachment {index}] {attachment.get('filename', 'unknown')}"]
+                if attachment.get("content_type"):
+                    details.append(f"type={attachment['content_type']}")
+                if attachment.get("size") is not None:
+                    details.append(f"size={attachment['size']}")
+                if attachment.get("url"):
+                    details.append(f"url={attachment['url']}")
+                attachment_lines.append(" ".join(details))
+            content = f"{content}\n  " + "\n  ".join(attachment_lines)
         print(f"[{created_at}] {author}: {content}")
 
 
