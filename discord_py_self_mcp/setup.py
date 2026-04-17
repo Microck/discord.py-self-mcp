@@ -211,14 +211,19 @@ async def get_token_from_browser():
 
         token = None
         while not token:
+            # Method 1: webpack chunk extraction
             try:
                 token = await page.evaluate(r"""
                     (webpackChunkdiscord_app.push([[],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken).exports.default.getToken()
                 """)
-                if token:
-                    break
-            except:
-                pass
+            except Exception:
+                # Method 2: localStorage fallback
+                try:
+                    token = await page.evaluate("localStorage.getItem('token')")
+                except Exception as e:
+                    print(f"Error retrieving token: {e}")
+            if token:
+                break
             await asyncio.sleep(1)
 
         print(f"Token found: {token[:20]}...{token[-5:]}")
