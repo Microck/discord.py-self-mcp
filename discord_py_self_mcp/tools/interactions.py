@@ -3,6 +3,7 @@ import inspect
 from mcp.types import TextContent
 from .registry import registry
 from ..bot import client
+from ..tool_utils import NON_MESSAGEABLE_TEXT, apply_rate_limit
 
 
 @registry.register(
@@ -42,7 +43,7 @@ async def send_slash_command(arguments: dict):
             return [TextContent(type="text", text="Channel not found")]
 
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
         if not isinstance(options, dict):
             return [TextContent(type="text", text="options must be an object")]
@@ -146,6 +147,7 @@ async def send_slash_command(arguments: dict):
                 ]
             target_command = current
 
+        await apply_rate_limit("action")
         await target_command(channel, **options)
         return [
             TextContent(type="text", text=f"Executed slash command: /{' '.join(parts)}")
@@ -191,7 +193,7 @@ async def click_button(arguments: dict):
                 return [TextContent(type="text", text="Access denied to channel")]
 
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
         message = await channel.fetch_message(message_id)
         if not message:
@@ -211,6 +213,7 @@ async def click_button(arguments: dict):
                             and arguments.get("column") == col_idx
                         )
                     ):
+                        await apply_rate_limit("action")
                         result = await component.click()
                         if isinstance(result, str):
                             return [
@@ -270,7 +273,7 @@ async def select_menu(arguments: dict):
                 return [TextContent(type="text", text="Access denied to channel")]
 
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
         message = await channel.fetch_message(message_id)
 
         for row_idx, action_row in enumerate(message.components or []):
@@ -312,6 +315,7 @@ async def select_menu(arguments: dict):
                                 for value in values
                             ]
 
+                        await apply_rate_limit("action")
                         await component.choose(*selected_options)
                         return [
                             TextContent(

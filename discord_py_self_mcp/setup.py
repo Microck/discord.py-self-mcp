@@ -6,6 +6,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from discord_py_self_mcp.logging_utils import mask_secret
+
 DISCORD_URL = "https://discord.com/login"
 
 
@@ -140,6 +142,7 @@ def _backup_file(path_str: str) -> str | None:
     stamp = datetime.utcnow().isoformat().replace(":", "-").replace(".", "-")
     backup = p.with_name(p.name + f".bak.{stamp}")
     shutil.copyfile(p, backup)
+    os.chmod(backup, 0o600)
     return str(backup)
 
 
@@ -149,6 +152,7 @@ def _write_json(path_str: str, data: dict) -> None:
     with open(path_str, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
+    os.chmod(p, 0o600)
 
 
 def _upsert_server(existing: dict, token: str, mode: str) -> dict:
@@ -226,7 +230,7 @@ async def get_token_from_browser():
                 break
             await asyncio.sleep(1)
 
-        print(f"Token found: {token[:20]}...{token[-5:]}")
+        print(f"Token found: {mask_secret(token)}")
         await browser.close()
         return token
 
@@ -263,6 +267,9 @@ async def async_main():
 
     print("\nGenerated MCP Configuration (paste into your MCP client settings):")
     print(json.dumps(generate_config(token), indent=2))
+    print(
+        "\nWarning: if you write this config to disk, your Discord token will be stored in plaintext."
+    )
 
     candidates = [c for c in _default_client_config_candidates() if c.get("path")]
     existing_targets = [c for c in candidates if Path(c["path"]).exists()]

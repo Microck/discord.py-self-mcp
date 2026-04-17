@@ -6,6 +6,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 from discord_py_self_mcp.bot import client
+from discord_py_self_mcp.logging_utils import mask_secret
 from discord_py_self_mcp.tools import registry
 
 # Suppress logging to stderr to avoid interfering with MCP stdio
@@ -41,7 +42,7 @@ async def run_app():
 
     logger.info(f"Starting Discord connection...")
     logger.info(
-        f"Token (masked): {token[:15]}...{token[-5:] if len(token) > 20 else token}"
+        f"Token (masked): {mask_secret(token)}"
     )
 
     # Start Discord client in background

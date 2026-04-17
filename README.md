@@ -190,7 +190,7 @@ powered by the robust `discord.py-self` library.
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
 | **interactions** | 3 | send_slash_command, click_button, select_menu |
-| **threads** | 2 | create_thread, archive_thread |
+| **threads** | 5 | create_thread, send_thread_message, list_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
 | **invites** | 3 | create_invite, list_invites, delete_invite |
 | **profile** | 1 | edit_profile |
@@ -303,7 +303,6 @@ built-in rate limiting to prevent account bans. configurable via environment var
 | `RATE_LIMIT_MESSAGES_PER_SECOND` | `1` | Max messages per second |
 | `RATE_LIMIT_ACTIONS_PER_MINUTE` | `5` | Max actions (joins, etc.) per minute |
 | `RATE_LIMIT_COOLDOWN` | `60` | Cooldown duration when limit hit (seconds) |
-| `RATE_LIMIT_RESPECT_GLOBAL` | `true` | Respect Discord's global rate limit |
 
 > **recommended**: Enable rate limiting (`RATE_LIMIT_ENABLED=true`) to reduce ban risk.
 

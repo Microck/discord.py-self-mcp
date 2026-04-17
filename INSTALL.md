@@ -178,7 +178,7 @@ Have the user restart their MCP client and run `list_guilds`.
 - Playwright issues: `playwright install chromium`
 - Token invalid: extract a fresh token (Discord rotates tokens after password change)
 - Voice issues on Linux: install `libffi-dev` and `python3-dev`
-- Captcha solver setup: `python -m camoufox fetch` and set `GROQ_API_KEY` in the MCP server `env`
+- Captcha solver setup: `python -m camoufox fetch` and set `GEMINI_API_KEY` in the MCP server `env`
 
 ### Python Module Not Found
 

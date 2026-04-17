@@ -1,11 +1,9 @@
 import os
-import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any
-import hcaptcha_challenger
 from hcaptcha_challenger.agent.challenger import AgentV
-from hcaptcha_challenger import models
-from loguru import logger
+
+from discord_py_self_mcp.logging_utils import log_to_stderr
 
 
 class HCaptchaSolver:
@@ -33,7 +31,7 @@ class HCaptchaSolver:
 
     def _log(self, msg: str):
         if self.debug:
-            print(f"[HCAPTCHA-CHALLENGER] {msg}")
+            log_to_stderr(f"[HCAPTCHA-CHALLENGER] {msg}")
 
     async def _ensure_initialized(self):
         if self._initialized:

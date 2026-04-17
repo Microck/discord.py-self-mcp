@@ -2,6 +2,7 @@ import discord
 from mcp.types import TextContent
 from .registry import registry
 from ..bot import client
+from ..tool_utils import apply_rate_limit
 
 
 @registry.register(
@@ -32,6 +33,7 @@ async def create_invite(arguments: dict):
             channel_id
         )
 
+        await apply_rate_limit("action")
         invite = await channel.create_invite(
             max_age=max_age,
             max_uses=max_uses,
@@ -87,6 +89,7 @@ async def delete_invite(arguments: dict):
         # We can try to fetch it first
 
         invite = await client.fetch_invite(invite_code)
+        await apply_rate_limit("action")
         await invite.delete()
         return [TextContent(type="text", text=f"Deleted invite {invite_code}")]
     except Exception as e:

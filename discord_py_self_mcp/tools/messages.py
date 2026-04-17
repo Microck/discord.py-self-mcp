@@ -2,9 +2,11 @@ import base64
 
 import discord
 from mcp.types import BlobResourceContents, EmbeddedResource, ImageContent, TextContent
+
+from ..bot import client
 from .registry import registry
 from .embed import build_search_text, format_attachment, format_message_line
-from ..bot import client
+from ..tool_utils import NON_MESSAGEABLE_TEXT, apply_rate_limit, validate_message_content
 
 MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
 
@@ -25,6 +27,9 @@ async def send_message(arguments: dict):
     try:
         channel_id = int(arguments["channel_id"])
         content = arguments["content"]
+        content_error = validate_message_content(content)
+        if content_error:
+            return [TextContent(type="text", text=content_error)]
         channel = client.get_channel(channel_id)
         if not channel:
             try:
@@ -37,8 +42,9 @@ async def send_message(arguments: dict):
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
+        await apply_rate_limit("message")
         message = await channel.send(content)
         return [
             TextContent(
@@ -78,7 +84,7 @@ async def read_messages(arguments: dict):
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
         messages = []
         async for msg in channel.history(limit=limit):
@@ -123,7 +129,7 @@ async def search_messages(arguments: dict):
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
         messages = []
         # Basic filtering using history since standard search API is not always reliable in selfbots without indexing
@@ -137,7 +143,15 @@ async def search_messages(arguments: dict):
                     break
 
         if not messages:
-            return [TextContent(type="text", text="No messages found matching query")]
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"No messages found matching '{arguments['query']}'. "
+                        "Try broadening your search or increasing the limit."
+                    ),
+                )
+            ]
 
         return [TextContent(type="text", text="\n".join(reversed(messages)))]
     except Exception as e:
@@ -162,6 +176,9 @@ async def edit_message(arguments: dict):
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
         content = arguments["content"]
+        content_error = validate_message_content(content)
+        if content_error:
+            return [TextContent(type="text", text=content_error)]
 
         channel = client.get_channel(channel_id)
         if not channel:
@@ -175,7 +192,7 @@ async def edit_message(arguments: dict):
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
         message = await channel.fetch_message(message_id)
 
         if message.author.id != client.user.id:
@@ -183,6 +200,7 @@ async def edit_message(arguments: dict):
                 TextContent(type="text", text="Cannot edit messages from other users")
             ]
 
+        await apply_rate_limit("message")
         await message.edit(content=content)
         return [TextContent(type="text", text=f"Edited message {message_id}")]
     except Exception as e:
@@ -218,9 +236,15 @@ async def delete_message(arguments: dict):
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
         message = await channel.fetch_message(message_id)
 
+        if message.author.id != client.user.id:
+            return [
+                TextContent(type="text", text="Cannot delete messages from other users")
+            ]
+
+        await apply_rate_limit("action")
         await message.delete()
         return [TextContent(type="text", text=f"Deleted message {message_id}")]
     except Exception as e:
@@ -276,7 +300,7 @@ async def get_message_attachments(arguments: dict):
         if not channel:
             return [TextContent(type="text", text="Channel not found")]
         if not isinstance(channel, discord.abc.Messageable):
-            return [TextContent(type="text", text="Channel is not messageable")]
+            return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
         message = await channel.fetch_message(message_id)
         attachments = list(message.attachments)

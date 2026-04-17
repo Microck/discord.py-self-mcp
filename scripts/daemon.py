@@ -1,32 +1,31 @@
-#!/usr/bin/env python3
 """
 Discord CLI Daemon - Persistent Discord connection with auto-reload
 Usage: python3 daemon.py <start|stop|restart|status>
 Auto-restart on code change: Enabled
 """
-import os
-import sys
-import asyncio
-import json
-import socket
-import signal
-import hashlib
-import time
-import subprocess
-from pathlib import Path
-from datetime import datetime, timedelta, timezone
-from threading import Thread, Event
 
-# Load environment variables FIRST
-# Priority: 1) Script directory (package location) 2) Current working directory
+import asyncio
+import hashlib
+import json
+import os
+import secrets
+import signal
+import subprocess
+import sys
+import time
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from secrets import compare_digest
+
 env_paths = [
-    Path(__file__).parent.parent / ".env",  # Package installation directory
-    Path.cwd() / ".env",                    # Fallback to current working directory
+    Path(__file__).parent.parent / ".env",
+    Path.cwd() / ".env",
 ]
 
 for env_path in env_paths:
     if env_path.exists():
         from dotenv import load_dotenv
+
         load_dotenv(env_path)
         break
 
@@ -36,14 +35,44 @@ if not TOKEN:
     sys.exit(1)
 
 import discord
+
+from discord_py_self_mcp.cli_runtime import (
+    AUTH_FILE,
+    LOG_FILE,
+    PID_FILE,
+    SOCKET_PATH,
+    chmod_private,
+    ensure_runtime_dir,
+)
+from discord_py_self_mcp.logging_utils import log_to_stderr
+from discord_py_self_mcp.tool_utils import NON_MESSAGEABLE_TEXT, validate_message_content
 from discord_py_self_mcp.tools.embed import serialize_message
 
-# Configuration
-PID_FILE = Path("/tmp/discord-cli-daemon.pid")
-SOCKET_PATH = Path("/tmp/discord-cli-daemon.sock")
 SCRIPT_DIR = Path(__file__).parent
 DAEMON_SCRIPT = SCRIPT_DIR / "daemon.py"
-CHECK_INTERVAL = 2  # Check for code changes every 2 seconds
+CHECK_INTERVAL = 2
+
+
+def _safe_unlink(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _load_or_create_auth_token() -> str:
+    ensure_runtime_dir()
+    if AUTH_FILE.exists():
+        token = AUTH_FILE.read_text(encoding="utf-8").strip()
+        if token:
+            chmod_private(AUTH_FILE)
+            return token
+
+    token = secrets.token_hex(32)
+    AUTH_FILE.write_text(token, encoding="utf-8")
+    chmod_private(AUTH_FILE)
+    return token
+
 
 class DiscordDaemon:
     def __init__(self):
@@ -51,164 +80,184 @@ class DiscordDaemon:
         self._connected = asyncio.Event()
         self._shutdown = asyncio.Event()
         self.server = None
-        self.command_queue = asyncio.Queue()
         self.responses = {}
         self.last_code_hash = None
         self.code_check_task = None
-        
+        self.auth_token = _load_or_create_auth_token()
+
     def _parse_after_time(self, after_str):
-        """Parse time string to datetime object.
-        Supports formats:
-        - ISO datetime: 2024-01-01T00:00:00
-        - Relative time: 4h, 30m, 1d
-        - Unix timestamp: 1704067200
-        """
+        """Parse CLI time input into a timezone-aware datetime."""
         if not after_str:
             return None
-        
-        # Try Unix timestamp first
+
         try:
             timestamp = int(after_str)
             return datetime.fromtimestamp(timestamp, tz=timezone.utc)
         except (ValueError, TypeError):
             pass
-        
-        # Try relative time format (e.g., "4h", "30m", "1d")
-        if after_str[-1] in ['h', 'm', 'd']:
+
+        if isinstance(after_str, str) and after_str[-1] in ["h", "m", "d"]:
             try:
                 value = int(after_str[:-1])
                 unit = after_str[-1]
                 now = datetime.now(timezone.utc)
-                if unit == 'h':
+                if unit == "h":
                     return now - timedelta(hours=value)
-                elif unit == 'm':
+                if unit == "m":
                     return now - timedelta(minutes=value)
-                elif unit == 'd':
+                if unit == "d":
                     return now - timedelta(days=value)
             except (ValueError, IndexError):
                 pass
-        
-        # Try ISO format
+
         try:
-            return datetime.fromisoformat(after_str.replace('Z', '+00:00'))
+            return datetime.fromisoformat(after_str.replace("Z", "+00:00"))
         except (ValueError, AttributeError):
-            pass
-        
-        return None
-    
+            return None
+
+    def _history_after_object(self, after_value):
+        if isinstance(after_value, datetime):
+            after_dt = after_value
+        else:
+            after_dt = self._parse_after_time(after_value)
+        if not after_dt:
+            return None
+        return discord.Object(id=discord.utils.time_snowflake(after_dt))
+
     def get_code_hash(self):
-        """Calculate hash of daemon.py to detect changes"""
+        """Calculate a stable hash of daemon.py to detect changes."""
         if not DAEMON_SCRIPT.exists():
             return None
-        with open(DAEMON_SCRIPT, 'rb') as f:
-            return hashlib.md5(f.read()).hexdigest()
-    
+        with open(DAEMON_SCRIPT, "rb") as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+
     async def monitor_code_changes(self):
-        """Monitor daemon.py for changes and auto-restart"""
+        """Monitor daemon.py for changes and auto-restart."""
         self.last_code_hash = self.get_code_hash()
         while not self._shutdown.is_set():
             await asyncio.sleep(CHECK_INTERVAL)
             current_hash = self.get_code_hash()
             if current_hash != self.last_code_hash:
-                print(f"[{datetime.now()}] Code change detected! Restarting daemon...")
+                log_to_stderr(
+                    f"[{datetime.now()}] Code change detected. Restarting daemon..."
+                )
                 await self.restart_daemon()
                 return
-    
+
     async def restart_daemon(self):
-        """Restart the daemon process"""
-        # Notify all pending requests
+        """Restart the daemon process."""
         for req_id in list(self.responses.keys()):
             self.responses[req_id] = {"error": "Daemon restarting due to code changes"}
-        
-        # Trigger shutdown
+
         self._shutdown.set()
         await self.client.close()
-        
-        # Remove socket file
-        if SOCKET_PATH.exists():
-            SOCKET_PATH.unlink()
-        
-        # Start new daemon process
-        subprocess.Popen([sys.executable, str(DAEMON_SCRIPT), "start"], 
-                        stdout=subprocess.DEVNULL, 
-                        stderr=subprocess.DEVNULL,
-                        start_new_session=True)
-        
-        # Exit current process
+        _safe_unlink(SOCKET_PATH)
+
+        subprocess.Popen(
+            [sys.executable, str(DAEMON_SCRIPT), "start"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
         os._exit(0)
-    
+
     async def connect(self):
-        """Connect to Discord and start listening"""
+        """Connect to Discord and wait for the initial ready signal."""
+
         @self.client.event
         async def on_ready():
-            print(f"[{datetime.now()}] Connected as {self.client.user}")
+            log_to_stderr(f"[{datetime.now()}] Connected as {self.client.user}")
             self._connected.set()
-        
+
         @self.client.event
         async def on_disconnect():
-            print(f"[{datetime.now()}] Disconnected from Discord")
-        
-        # Start connection
-        connect_task = asyncio.create_task(self.client.start(TOKEN))
+            log_to_stderr(f"[{datetime.now()}] Disconnected from Discord")
+
+        asyncio.create_task(self.client.start(TOKEN))
         await asyncio.wait_for(self._connected.wait(), timeout=30)
-        return connect_task
-    
+
     async def handle_command(self, command_data):
-        """Execute a command and return result"""
+        """Execute a command and return a JSON-serializable result."""
         cmd = command_data.get("command")
         args = command_data.get("args", {})
-        
+
         try:
             if cmd == "list_guilds":
                 return self._list_guilds()
-            elif cmd == "list_channels":
+            if cmd == "list_channels":
                 return await self._list_channels(args.get("guild_id"))
-            elif cmd == "read_messages":
-                return await self._read_messages(args.get("channel_id"), args.get("limit", 10), args.get("after"))
-            elif cmd == "send_message":
-                return await self._send_message(args.get("channel_id"), args.get("content"))
-            elif cmd == "list_threads":
-                return await self._list_threads(args.get("channel_id"), args.get("archived", False))
-            elif cmd == "read_thread":
-                return await self._read_thread(args.get("thread_id"), args.get("limit", 50), args.get("after"))
-            elif cmd == "list_guild_threads":
+            if cmd == "read_messages":
+                return await self._read_messages(
+                    args.get("channel_id"), args.get("limit", 10), args.get("after")
+                )
+            if cmd == "send_message":
+                return await self._send_message(
+                    args.get("channel_id"), args.get("content")
+                )
+            if cmd == "list_threads":
+                return await self._list_threads(
+                    args.get("channel_id"), args.get("archived", False)
+                )
+            if cmd == "read_thread":
+                return await self._read_thread(
+                    args.get("thread_id"), args.get("limit", 50), args.get("after")
+                )
+            if cmd == "list_guild_threads":
                 return self._list_guild_threads(args.get("guild_id"))
-            elif cmd == "list_recent_threads":
-                return self._list_recent_threads(args.get("guild_id"), args.get("within_hours", 24))
-            elif cmd == "read_recent_threads":
-                return await self._read_recent_threads(args.get("guild_id"), args.get("within_hours", 4), args.get("limit_per_thread", 30))
-            elif cmd == "delete_message":
-                return await self._delete_message(args.get("channel_id"), args.get("message_id"))
-            elif cmd == "pin_message":
-                return await self._pin_message(args.get("channel_id"), args.get("message_id"))
-            elif cmd == "get_thread_info":
+            if cmd == "list_recent_threads":
+                return self._list_recent_threads(
+                    args.get("guild_id"), args.get("within_hours", 24)
+                )
+            if cmd == "read_recent_threads":
+                return await self._read_recent_threads(
+                    args.get("guild_id"),
+                    args.get("within_hours", 4),
+                    args.get("limit_per_thread", 30),
+                )
+            if cmd == "delete_message":
+                return await self._delete_message(
+                    args.get("channel_id"), args.get("message_id")
+                )
+            if cmd == "pin_message":
+                return await self._pin_message(
+                    args.get("channel_id"), args.get("message_id")
+                )
+            if cmd == "get_thread_info":
                 return self._get_thread_info(args.get("thread_id"))
-            elif cmd == "archive_thread":
-                return await self._archive_thread(args.get("thread_id"), args.get("unarchive", False))
-            elif cmd == "join_thread":
+            if cmd == "archive_thread":
+                return await self._archive_thread(
+                    args.get("thread_id"), args.get("unarchive", False)
+                )
+            if cmd == "join_thread":
                 return await self._join_thread(args.get("thread_id"))
-            elif cmd == "leave_thread":
+            if cmd == "leave_thread":
                 return await self._leave_thread(args.get("thread_id"))
-            elif cmd == "user_info":
+            if cmd == "user_info":
                 return self._get_user_info(args.get("user_id"))
-            elif cmd == "create_thread":
-                return await self._create_thread(args.get("channel_id"), args.get("name"), args.get("message_id"), args.get("content"))
-            else:
-                return {"error": f"Unknown command: {cmd}"}
-        except Exception as e:
-            return {"error": str(e)}
-    
+            if cmd == "create_thread":
+                return await self._create_thread(
+                    args.get("channel_id"),
+                    args.get("name"),
+                    args.get("message_id"),
+                    args.get("content"),
+                )
+            return {"error": f"Unknown command: {cmd}"}
+        except Exception as exc:
+            return {"error": str(exc)}
+
     def _list_guilds(self):
         guilds = []
         for guild in self.client.guilds:
-            guilds.append({
-                "id": guild.id,
-                "name": guild.name,
-                "member_count": guild.member_count,
-                "channel_count": len(guild.channels)
-            })
+            guilds.append(
+                {
+                    "id": guild.id,
+                    "name": guild.name,
+                    "member_count": guild.member_count,
+                    "channel_count": len(guild.channels),
+                }
+            )
         return {"guilds": guilds}
-    
+
     async def _list_channels(self, guild_id):
         guild = self.client.get_guild(guild_id)
         if not guild:
@@ -216,224 +265,245 @@ class DiscordDaemon:
                 guild = await self.client.fetch_guild(guild_id)
             except discord.NotFound:
                 return {"error": "Guild not found"}
-            except discord.HTTPException as e:
-                return {"error": f"Failed to fetch guild: {e}"}
-        
+            except discord.HTTPException as exc:
+                return {"error": f"Failed to fetch guild: {exc}"}
+
         channels = []
         for channel in guild.channels:
             if isinstance(channel, discord.TextChannel):
                 channels.append({"id": channel.id, "name": channel.name})
         return {"channels": channels}
-    
+
     async def _read_messages(self, channel_id, limit, after=None):
-        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
         if not channel:
             return {"error": "Channel not found"}
-        
-        # Parse after time
-        after_dt = self._parse_after_time(after) if after else None
-        
-        messages = []
+        if not isinstance(channel, discord.abc.Messageable):
+            return {"error": NON_MESSAGEABLE_TEXT}
+
+        history_after = self._history_after_object(after)
         kwargs = {"limit": limit}
-        if after_dt:
-            kwargs["after"] = after_dt
-        
+        if history_after:
+            kwargs["after"] = history_after
+
+        messages = []
         async for msg in channel.history(**kwargs):
             messages.append(serialize_message(msg))
         messages.reverse()
         return {"messages": messages}
-    
+
     async def _send_message(self, channel_id, content):
-        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
+        content_error = validate_message_content(content or "")
+        if content_error:
+            return {"error": content_error}
+
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
         if not channel:
             return {"error": "Channel not found"}
-        
+        if not isinstance(channel, discord.abc.Messageable):
+            return {"error": NON_MESSAGEABLE_TEXT}
+
         message = await channel.send(content)
         return {"message_id": message.id, "success": True}
-    
+
     async def _list_threads(self, channel_id, archived=False):
-        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
         if not channel:
             return {"error": "Channel not found"}
-        
+
         threads = []
         for thread in channel.threads:
             threads.append({"id": thread.id, "name": thread.name, "status": "Active"})
-        
+
         if archived:
             try:
                 async for thread in channel.archived_threads(limit=100):
-                    threads.append({"id": thread.id, "name": thread.name, "status": "Archived"})
-            except (discord.Forbidden, discord.HTTPException) as e:
-                print(f"[{datetime.now()}] Warning: Failed to fetch archived threads: {e}")
-        
+                    threads.append(
+                        {"id": thread.id, "name": thread.name, "status": "Archived"}
+                    )
+            except (discord.Forbidden, discord.HTTPException) as exc:
+                log_to_stderr(
+                    f"[{datetime.now()}] Warning: failed to fetch archived threads: {exc}"
+                )
+
         return {"threads": threads}
-    
+
     async def _read_thread(self, thread_id, limit, after=None):
-        thread = self.client.get_channel(thread_id) or await self.client.fetch_channel(thread_id)
+        thread = self.client.get_channel(thread_id) or await self.client.fetch_channel(
+            thread_id
+        )
         if not thread or not isinstance(thread, discord.Thread):
             return {"error": "Thread not found"}
-        
-        # Parse after time
-        after_dt = self._parse_after_time(after) if after else None
-        
-        messages = []
+
+        history_after = self._history_after_object(after)
         kwargs = {"limit": limit}
-        if after_dt:
-            kwargs["after"] = after_dt
-        
+        if history_after:
+            kwargs["after"] = history_after
+
+        messages = []
         async for msg in thread.history(**kwargs):
             messages.append(serialize_message(msg))
         messages.reverse()
         return {"messages": messages, "thread_name": thread.name}
-    
+
     def _list_guild_threads(self, guild_id):
         guild = self.client.get_guild(guild_id)
         if not guild:
             return {"error": "Guild not found"}
-        
-        threads = []
-        for thread in guild.threads:
-            threads.append({
-                "id": thread.id,
-                "name": thread.name,
-                "parent": thread.parent.name if thread.parent else "Unknown"
-            })
-        return {"threads": threads}
-    
-    def _list_recent_threads(self, guild_id, within_hours=24):
-        """List threads with recent activity (within specified hours).
-
-        Args:
-            guild_id: Guild ID
-            within_hours: Only show threads with activity within this many hours
-        """
-        guild = self.client.get_guild(guild_id)
-        if not guild:
-            return {"error": "Guild not found"}
-
-        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=within_hours)
 
         threads = []
         for thread in guild.threads:
-            # Get last message time if available
-            last_message_time = None
-            if thread.last_message:
-                last_message_time = thread.last_message.created_at
-
-            # Include thread if it has activity within cutoff time
-            if last_message_time and last_message_time >= cutoff_time:
-                threads.append({
+            threads.append(
+                {
                     "id": thread.id,
                     "name": thread.name,
                     "parent": thread.parent.name if thread.parent else "Unknown",
-                    "last_message_at": last_message_time.isoformat(),
-                    "message_count": thread.message_count
-                })
-
-        # Sort by last message time (most recent first)
-        threads.sort(key=lambda x: x["last_message_at"], reverse=True)
+                }
+            )
         return {"threads": threads}
-    
-    async def _read_recent_threads(self, guild_id, within_hours=4, limit_per_thread=30):
-        """Read messages from all threads with recent activity.
 
-        Args:
-            guild_id: Guild ID
-            within_hours: Only read threads with activity within this many hours
-            limit_per_thread: Max messages to read per thread
-
-        Returns:
-            Dict with thread messages organized by thread
-        """
+    def _list_recent_threads(self, guild_id, within_hours=24):
         guild = self.client.get_guild(guild_id)
         if not guild:
             return {"error": "Guild not found"}
 
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=within_hours)
-        result = {"threads": [], "total_messages": 0}
-        
+        threads = []
         for thread in guild.threads:
-            # Check if thread has recent activity
             last_message_time = None
             if thread.last_message:
                 last_message_time = thread.last_message.created_at
-            
+
             if last_message_time and last_message_time >= cutoff_time:
-                # Read messages from this thread
-                messages = []
-                async for msg in thread.history(limit=limit_per_thread, after=cutoff_time):
-                    messages.append({
-                        "id": msg.id,
-                        "author": msg.author.name if msg.author else "Unknown",
-                        "content": msg.content,
-                        "created_at": msg.created_at.isoformat()
-                    })
-                messages.reverse()
-                
-                if messages:
-                    result["threads"].append({
+                threads.append(
+                    {
                         "id": thread.id,
                         "name": thread.name,
                         "parent": thread.parent.name if thread.parent else "Unknown",
-                        "messages": messages,
-                        "message_count": len(messages)
-                    })
+                        "last_message_at": last_message_time.isoformat(),
+                        "message_count": thread.message_count,
+                    }
+                )
+
+        threads.sort(key=lambda item: item["last_message_at"], reverse=True)
+        return {"threads": threads}
+
+    async def _read_recent_threads(self, guild_id, within_hours=4, limit_per_thread=30):
+        guild = self.client.get_guild(guild_id)
+        if not guild:
+            return {"error": "Guild not found"}
+
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=within_hours)
+        history_after = self._history_after_object(cutoff_time)
+        result = {"threads": [], "total_messages": 0}
+
+        for thread in guild.threads:
+            last_message_time = None
+            if thread.last_message:
+                last_message_time = thread.last_message.created_at
+
+            if last_message_time and last_message_time >= cutoff_time:
+                messages = []
+                kwargs = {"limit": limit_per_thread}
+                if history_after:
+                    kwargs["after"] = history_after
+                async for msg in thread.history(**kwargs):
+                    messages.append(
+                        {
+                            "id": msg.id,
+                            "author": msg.author.name if msg.author else "Unknown",
+                            "content": msg.content,
+                            "created_at": msg.created_at.isoformat(),
+                        }
+                    )
+                messages.reverse()
+
+                if messages:
+                    result["threads"].append(
+                        {
+                            "id": thread.id,
+                            "name": thread.name,
+                            "parent": thread.parent.name if thread.parent else "Unknown",
+                            "messages": messages,
+                            "message_count": len(messages),
+                        }
+                    )
                     result["total_messages"] += len(messages)
-        
-        # Sort threads by last activity
+
         result["threads"].sort(
-            key=lambda x: x["messages"][-1]["created_at"] if x["messages"] else "",
-            reverse=True
+            key=lambda item: item["messages"][-1]["created_at"]
+            if item["messages"]
+            else "",
+            reverse=True,
         )
-        
         return result
-    
+
     def _get_user_info(self, user_id):
         if user_id:
-            # Can't easily fetch arbitrary users without gateway intents
             return {"error": "Fetching specific users not supported in daemon mode"}
-        
+
         user = self.client.user
-        return {
-            "name": user.name,
-            "id": user.id,
-            "bot": user.bot
-        }
-    
+        return {"name": user.name, "id": user.id, "bot": user.bot}
+
     async def _create_thread(self, channel_id, name, message_id, content=None):
-        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
         if not channel:
             return {"error": "Channel not found"}
 
-        # Support both TextChannel and ForumChannel
         if isinstance(channel, discord.ForumChannel):
-            # For forum channels, create a thread with an initial message
-            if not content:
-                content = name or "New thread"
-            thread_with_message = await channel.create_thread(name=name, content=content, reason="Created via CLI")
-            return {"thread_id": thread_with_message.thread.id, "thread_name": thread_with_message.thread.name, "success": True}
-        elif isinstance(channel, discord.TextChannel):
-            if message_id:
-                message = await channel.fetch_message(message_id)
-                if not message:
-                    return {"error": "Message not found"}
-                thread = await message.create_thread(name=name or f"Thread-{message_id}")
-                return {"thread_id": thread.id, "thread_name": thread.name, "success": True}
-            else:
-                thread = await channel.create_thread(name=name, reason="Created via CLI")
-                return {"thread_id": thread.id, "thread_name": thread.name, "success": True}
-        else:
-            return {"error": "Channel must be a text channel or forum channel"}
+            thread_content = content or name or "New thread"
+            content_error = validate_message_content(thread_content)
+            if content_error:
+                return {"error": content_error}
+            thread_with_message = await channel.create_thread(
+                name=name,
+                content=thread_content,
+                reason="Created via CLI",
+            )
+            return {
+                "thread_id": thread_with_message.thread.id,
+                "thread_name": thread_with_message.thread.name,
+                "success": True,
+            }
+
+        if isinstance(channel, discord.TextChannel):
+            if not message_id:
+                return {
+                    "error": "message_id is required when creating a thread from a text channel"
+                }
+            message = await channel.fetch_message(message_id)
+            if not message:
+                return {"error": "Message not found"}
+            thread = await message.create_thread(name=name or f"Thread-{message_id}")
+            return {
+                "thread_id": thread.id,
+                "thread_name": thread.name,
+                "success": True,
+            }
+
+        return {"error": "Channel must be a text channel or forum channel"}
 
     async def _delete_message(self, channel_id, message_id):
-        """Delete a message from a channel."""
-        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
         if not channel:
             return {"error": "Channel not found"}
+        if not isinstance(channel, discord.abc.Messageable):
+            return {"error": NON_MESSAGEABLE_TEXT}
 
         try:
             message = await channel.fetch_message(message_id)
+            if message.author.id != self.client.user.id:
+                return {"error": "Cannot delete messages from other users"}
             await message.delete()
             return {"success": True, "message_id": message_id}
         except discord.NotFound:
@@ -442,8 +512,9 @@ class DiscordDaemon:
             return {"error": "No permission to delete this message"}
 
     async def _pin_message(self, channel_id, message_id):
-        """Pin a message in a channel."""
-        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(channel_id)
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
         if not channel:
             return {"error": "Channel not found"}
 
@@ -457,7 +528,6 @@ class DiscordDaemon:
             return {"error": "No permission to pin this message"}
 
     def _get_thread_info(self, thread_id):
-        """Get detailed information about a thread."""
         thread = self.client.get_channel(thread_id)
         if not thread or not isinstance(thread, discord.Thread):
             return {"error": "Thread not found"}
@@ -472,12 +542,13 @@ class DiscordDaemon:
             "locked": thread.locked,
             "message_count": thread.message_count,
             "member_count": thread.member_count,
-            "created_at": thread.created_at.isoformat() if thread.created_at else None
+            "created_at": thread.created_at.isoformat() if thread.created_at else None,
         }
 
     async def _archive_thread(self, thread_id, unarchive=False):
-        """Archive or unarchive a thread."""
-        thread = self.client.get_channel(thread_id) or await self.client.fetch_channel(thread_id)
+        thread = self.client.get_channel(thread_id) or await self.client.fetch_channel(
+            thread_id
+        )
         if not thread or not isinstance(thread, discord.Thread):
             return {"error": "Thread not found"}
 
@@ -489,7 +560,6 @@ class DiscordDaemon:
             return {"error": "No permission to modify this thread"}
 
     async def _join_thread(self, thread_id):
-        """Join a thread."""
         thread = self.client.get_channel(thread_id)
         if not thread or not isinstance(thread, discord.Thread):
             return {"error": "Thread not found"}
@@ -501,7 +571,6 @@ class DiscordDaemon:
             return {"error": "No permission to join this thread"}
 
     async def _leave_thread(self, thread_id):
-        """Leave a thread."""
         thread = self.client.get_channel(thread_id)
         if not thread or not isinstance(thread, discord.Thread):
             return {"error": "Thread not found"}
@@ -511,106 +580,103 @@ class DiscordDaemon:
             return {"success": True, "thread_name": thread.name}
         except discord.Forbidden:
             return {"error": "No permission to leave this thread"}
-    
+
     async def handle_client(self, reader, writer):
-        """Handle incoming client connections"""
+        """Handle incoming client connections."""
         try:
             data = await reader.read(65536)
             if not data:
                 return
-            
+
             command_data = json.loads(data.decode())
-            result = await self.handle_command(command_data)
-            
-            response = json.dumps(result).encode()
-            writer.write(response)
+            provided_auth = str(command_data.pop("auth", ""))
+            if not compare_digest(provided_auth, self.auth_token):
+                response = {"error": "Unauthorized daemon request"}
+            else:
+                response = await self.handle_command(command_data)
+
+            writer.write(json.dumps(response).encode())
             await writer.drain()
-        except Exception as e:
-            error_response = json.dumps({"error": str(e)}).encode()
-            writer.write(error_response)
+        except Exception as exc:
+            writer.write(json.dumps({"error": str(exc)}).encode())
             await writer.drain()
         finally:
             writer.close()
             await writer.wait_closed()
-    
+
     async def start_server(self):
-        """Start Unix socket server"""
-        # Remove old socket file
-        if SOCKET_PATH.exists():
-            SOCKET_PATH.unlink()
-        
+        """Start the private Unix socket server."""
+        ensure_runtime_dir()
+        _safe_unlink(SOCKET_PATH)
+
         self.server = await asyncio.start_unix_server(
             self.handle_client,
-            path=str(SOCKET_PATH)
+            path=str(SOCKET_PATH),
         )
-        
-        print(f"[{datetime.now()}] Daemon server started on {SOCKET_PATH}")
-        
+        chmod_private(SOCKET_PATH)
+        log_to_stderr(f"[{datetime.now()}] Daemon server started on {SOCKET_PATH}")
+
         async with self.server:
-            # Start code monitoring
             self.code_check_task = asyncio.create_task(self.monitor_code_changes())
-            
-            # Keep server running
             try:
                 await self._shutdown.wait()
             except asyncio.CancelledError:
                 pass
-    
+
     async def run(self):
-        """Main daemon loop"""
+        """Main daemon loop."""
         try:
-            # Connect to Discord
-            print(f"[{datetime.now()}] Connecting to Discord...")
-            connect_task = await self.connect()
-            
-            # Start socket server
+            log_to_stderr(f"[{datetime.now()}] Connecting to Discord...")
+            await self.connect()
             await self.start_server()
-            
-        except Exception as e:
-            print(f"[{datetime.now()}] Error: {e}")
+        except Exception as exc:
+            log_to_stderr(f"[{datetime.now()}] Error: {exc}")
             raise
         finally:
+            if self.code_check_task:
+                self.code_check_task.cancel()
             await self.client.close()
-            if SOCKET_PATH.exists():
-                SOCKET_PATH.unlink()
+            _safe_unlink(SOCKET_PATH)
 
 
 def write_pid():
-    """Write PID to file"""
-    with open(PID_FILE, 'w') as f:
-        f.write(str(os.getpid()))
+    """Write PID to file."""
+    ensure_runtime_dir()
+    PID_FILE.write_text(str(os.getpid()), encoding="utf-8")
+    chmod_private(PID_FILE)
+
 
 def read_pid():
-    """Read PID from file"""
+    """Read PID from file."""
     if PID_FILE.exists():
-        with open(PID_FILE, 'r') as f:
-            return int(f.read().strip())
+        try:
+            return int(PID_FILE.read_text(encoding="utf-8").strip())
+        except ValueError:
+            return None
     return None
 
+
 def is_process_running(pid):
-    """Check if a process is running"""
+    """Check if a process is running."""
     try:
         os.kill(pid, 0)
         return True
-    except (OSError, ProcessLookupError):
+    except (OSError, ProcessLookupError, TypeError):
         return False
 
+
 def start_daemon():
-    """Start the daemon"""
+    """Start the daemon."""
+    ensure_runtime_dir()
     existing_pid = read_pid()
     if existing_pid and is_process_running(existing_pid):
         print(f"Daemon is already running (PID: {existing_pid})")
         return
-    
-    # Remove old PID file
-    if PID_FILE.exists():
-        PID_FILE.unlink()
-    
+
+    _safe_unlink(PID_FILE)
     print("Starting Discord CLI daemon...")
-    
-    # Fork to background
+
     if os.fork() > 0:
-        # Parent process
         time.sleep(1)
         new_pid = read_pid()
         if new_pid and is_process_running(new_pid):
@@ -618,87 +684,86 @@ def start_daemon():
         else:
             print("Failed to start daemon")
         return
-    
-    # Child process - daemonize
+
     os.setsid()
-    os.umask(0o077)  # Restrict permissions: only owner can read/write/execute
-    
+    os.umask(0o077)
+
     if os.fork() > 0:
         os._exit(0)
-    
-    # Grandchild process - the actual daemon
+
     write_pid()
-    
-    # Redirect stdout/stderr to log file
-    log_file = open("/tmp/discord-cli-daemon.log", "a")
+
+    ensure_runtime_dir()
+    LOG_FILE.touch(exist_ok=True)
+    chmod_private(LOG_FILE)
+    log_file = open(LOG_FILE, "a", encoding="utf-8")
     os.dup2(log_file.fileno(), sys.stdout.fileno())
     os.dup2(log_file.fileno(), sys.stderr.fileno())
-    
-    # Run daemon
+
     daemon = DiscordDaemon()
     asyncio.run(daemon.run())
 
+
 def stop_daemon():
-    """Stop the daemon"""
+    """Stop the daemon."""
     pid = read_pid()
     if not pid:
         print("Daemon is not running")
         return
-    
+
     if not is_process_running(pid):
         print(f"Daemon process not found (PID: {pid})")
-        if PID_FILE.exists():
-            PID_FILE.unlink()
+        _safe_unlink(PID_FILE)
         return
-    
+
     print(f"Stopping daemon (PID: {pid})...")
     try:
         os.kill(pid, signal.SIGTERM)
-        # Wait for process to stop
         for _ in range(10):
             if not is_process_running(pid):
                 break
             time.sleep(0.5)
-        
+
         if is_process_running(pid):
             print("Force killing daemon...")
             os.kill(pid, signal.SIGKILL)
-        
+
         print("Daemon stopped")
-    except Exception as e:
-        print(f"Error stopping daemon: {e}")
+    except Exception as exc:
+        print(f"Error stopping daemon: {exc}")
     finally:
-        if PID_FILE.exists():
-            PID_FILE.unlink()
-        if SOCKET_PATH.exists():
-            SOCKET_PATH.unlink()
+        _safe_unlink(PID_FILE)
+        _safe_unlink(SOCKET_PATH)
+
 
 def restart_daemon():
-    """Restart the daemon"""
+    """Restart the daemon."""
     stop_daemon()
     time.sleep(1)
     start_daemon()
 
+
 def daemon_status():
-    """Check daemon status"""
+    """Check daemon status."""
     pid = read_pid()
     if pid and is_process_running(pid):
         print(f"Daemon is running (PID: {pid})")
         print(f"Socket: {SOCKET_PATH}")
+        print(f"Log: {LOG_FILE}")
         return True
-    else:
-        print("Daemon is not running")
-        if PID_FILE.exists():
-            PID_FILE.unlink()
-        return False
+
+    print("Daemon is not running")
+    _safe_unlink(PID_FILE)
+    return False
+
 
 def main():
     if len(sys.argv) < 2:
         print("Usage: python3 daemon.py <start|stop|restart|status>")
         sys.exit(1)
-    
+
     command = sys.argv[1]
-    
+
     if command == "start":
         start_daemon()
     elif command == "stop":
@@ -711,6 +776,7 @@ def main():
         print(f"Unknown command: {command}")
         print("Usage: python3 daemon.py <start|stop|restart|status>")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

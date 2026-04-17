@@ -2,6 +2,7 @@ import discord
 from mcp.types import TextContent
 from .registry import registry
 from ..bot import client
+from ..tool_utils import apply_rate_limit
 
 @registry.register(
     name="kick_member",
@@ -29,7 +30,8 @@ async def kick_member(arguments: dict):
         member = guild.get_member(user_id) or await guild.fetch_member(user_id)
         if not member:
             return [TextContent(type="text", text="Member not found")]
-            
+
+        await apply_rate_limit("action")
         await member.kick(reason=reason)
         return [TextContent(type="text", text=f"Kicked member {member.name}")]
     except Exception as e:
@@ -62,7 +64,8 @@ async def ban_member(arguments: dict):
             
         # Can ban user even if not in guild
         user = discord.Object(id=user_id)
-        
+
+        await apply_rate_limit("action")
         await guild.ban(user, reason=reason, delete_message_days=delete_days)
         return [TextContent(type="text", text=f"Banned user {user_id}")]
     except Exception as e:
@@ -92,7 +95,8 @@ async def unban_member(arguments: dict):
             return [TextContent(type="text", text="Guild not found")]
             
         user = discord.Object(id=user_id)
-        
+
+        await apply_rate_limit("action")
         await guild.unban(user, reason=reason)
         return [TextContent(type="text", text=f"Unbanned user {user_id}")]
     except Exception as e:
@@ -129,7 +133,8 @@ async def add_role(arguments: dict):
         
         if not role:
             return [TextContent(type="text", text="Role not found")]
-            
+
+        await apply_rate_limit("action")
         await member.add_roles(role)
         return [TextContent(type="text", text=f"Added role {role.name} to {member.name}")]
     except Exception as e:
@@ -166,7 +171,8 @@ async def remove_role(arguments: dict):
         
         if not role:
             return [TextContent(type="text", text="Role not found")]
-            
+
+        await apply_rate_limit("action")
         await member.remove_roles(role)
         return [TextContent(type="text", text=f"Removed role {role.name} from {member.name}")]
     except Exception as e:

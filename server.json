@@ -30,8 +30,8 @@
           "isRequired": false
         },
         {
-          "name": "GROQ_API_KEY",
-          "description": "Optional Groq API key used for the experimental hCaptcha solver.",
+          "name": "GEMINI_API_KEY",
+          "description": "Optional Gemini API key used for the experimental hCaptcha solver.",
           "format": "string",
           "isRequired": false,
           "secret": true

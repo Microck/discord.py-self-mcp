@@ -1,7 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from ..tool_utils import apply_rate_limit
+from .registry import registry
 
 @registry.register(
     name="set_status",
@@ -24,6 +26,7 @@ async def set_status(arguments: dict):
             "invisible": discord.Status.invisible
         }
         
+        await apply_rate_limit("action")
         await client.change_presence(status=status_map[status_str])
         return [TextContent(type="text", text=f"Status set to {status_str}")]
     except Exception as e:
@@ -31,7 +34,7 @@ async def set_status(arguments: dict):
 
 @registry.register(
     name="set_activity",
-    description="Set user activity (playing, watching, listening)",
+    description="Set user activity (playing, watching, listening, competing)",
     input_schema={
         "type": "object",
         "properties": {
@@ -54,6 +57,7 @@ async def set_activity(arguments: dict):
         }
         
         activity = discord.Activity(type=type_map[activity_type], name=name)
+        await apply_rate_limit("action")
         await client.change_presence(activity=activity)
         return [TextContent(type="text", text=f"Activity set to {activity_type} {name}")]
     except Exception as e:

@@ -42,12 +42,19 @@ function backupFile(filePath) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPath = `${filePath}.bak.${stamp}`;
   fs.copyFileSync(filePath, backupPath);
+  fs.chmodSync(backupPath, 0o600);
   return backupPath;
 }
 
 function writeJsonFile(filePath, data) {
   ensureDirForFile(filePath);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2) + '\n');
+  fs.chmodSync(filePath, 0o600);
+}
+
+function maskSecret(secret) {
+  if (!secret) return '<missing>';
+  return `${secret.slice(0, 4)}... (len=${secret.length})`;
 }
 
 function buildGenericMcpServersEntry(token) {
@@ -188,7 +195,7 @@ async function getTokenFromBrowser() {
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  console.log(`Token found: ${token.substring(0, 20)}...${token.substring(token.length - 5)}`);
+  console.log(`Token found: ${maskSecret(token)}`);
   await browser.close();
   return token;
 }
@@ -248,6 +255,7 @@ async function main() {
 
   console.log('\nGenerated MCP Configuration:');
   console.log(JSON.stringify(generateConfig(token), null, 2));
+  console.log('\nWarning: if you write this config to disk, your Discord token will be stored in plaintext.');
 
   const detected = detectClientConfigs();
   const options = [...detected];

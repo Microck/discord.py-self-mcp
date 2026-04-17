@@ -57,6 +57,10 @@ class FakeMessage:
         self.attachments = attachments or []
         self.embeds = []
         self.created_at = datetime(2026, 4, 17, 19, 0, tzinfo=timezone.utc)
+        self.deleted = False
+
+    async def delete(self):
+        self.deleted = True
 
 
 class FakeHistoryIterator:
@@ -145,3 +149,16 @@ async def test_get_message_attachments_can_skip_binary_download(monkeypatch):
 
     assert len(result) == 1
     assert result[0].text.startswith("[Attachment 0] photo.png")
+
+
+@pytest.mark.asyncio
+async def test_delete_message_blocks_other_users(monkeypatch):
+    fake_message = FakeMessage(author=FakeAuthor(user_id=123))
+    fake_channel = FakeChannel(fetched_message=fake_message)
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    result = await messages.delete_message({"channel_id": "1", "message_id": "456"})
+
+    assert result[0].text == "Cannot delete messages from other users"
+    assert fake_message.deleted is False

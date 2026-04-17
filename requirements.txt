@@ -1,7 +1,9 @@
-discord.py-self[voice]>=2.0.1
+discord.py-self[voice]==2.0.1
 mcp
 python-dotenv
 playwright
+hcaptcha-challenger
+audioop-lts; python_version >= '3.13'
 camoufox[geoip]
 tls-client
 httpx
@@ -10,5 +12,4 @@ colorama
 numpy
 scipy
 requests
-hcaptcha-challenger[playwright]
 loguru

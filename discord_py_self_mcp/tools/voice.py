@@ -2,6 +2,7 @@ import discord
 from mcp.types import TextContent
 from .registry import registry
 from ..bot import client
+from ..tool_utils import apply_rate_limit
 
 @registry.register(
     name="join_voice_channel",
@@ -24,6 +25,7 @@ async def join_voice_channel(arguments: dict):
         if not isinstance(channel, discord.VoiceChannel):
              return [TextContent(type="text", text="Channel is not a voice channel")]
 
+        await apply_rate_limit("action")
         await channel.connect()
         return [TextContent(type="text", text=f"Joined voice channel {channel.name}")]
     except Exception as e:
@@ -46,8 +48,9 @@ async def leave_voice_channel(arguments: dict):
         guild = client.get_guild(guild_id)
         if not guild:
             return [TextContent(type="text", text="Guild not found")]
-        
+
         if guild.voice_client:
+            await apply_rate_limit("action")
             await guild.voice_client.disconnect()
             return [TextContent(type="text", text=f"Left voice channel in {guild.name}")]
         else:

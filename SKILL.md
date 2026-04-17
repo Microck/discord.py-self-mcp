@@ -248,7 +248,7 @@ Commands that support `--after` parameter accept the following formats:
 - **Daemon Mode**: Uses persistent connection for instant command execution
 - **Auto-Restart**: Daemon monitors its own code and restarts automatically when changes are detected
 - **Process Management**: Built-in commands to manage the daemon lifecycle
-- **Socket Communication**: Client and daemon communicate via Unix socket at `/tmp/discord-cli-daemon.sock`
+- **Socket Communication**: Client and daemon communicate via a private Unix socket under `$XDG_RUNTIME_DIR/discord-py-self-mcp` or `~/.local/state/discord-py-self-mcp`
 - **Rate Limiting**: Respected automatically by the underlying discord.py library
 
 ## Working with Forum Channels
@@ -294,7 +294,6 @@ python3 scripts/dcli.py daemon restart
 ```bash
 # Clean up and restart
 python3 scripts/dcli.py daemon stop
-rm /tmp/discord-cli-daemon.sock
 python3 scripts/dcli.py daemon start
 ```
 

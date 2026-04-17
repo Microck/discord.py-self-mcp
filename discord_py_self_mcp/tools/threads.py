@@ -1,8 +1,10 @@
 import discord
 from mcp.types import TextContent
+
+from ..bot import client
+from ..tool_utils import apply_rate_limit, validate_message_content
 from .registry import registry
 from .embed import format_message_line
-from ..bot import client
 
 @registry.register(
     name="create_thread",
@@ -28,7 +30,18 @@ async def create_thread(arguments: dict):
         message = None
         if message_id:
             message = await channel.fetch_message(int(message_id))
-            
+        elif not isinstance(channel, discord.ForumChannel):
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        "message_id is required when creating a thread from a regular "
+                        "text channel"
+                    ),
+                )
+            ]
+
+        await apply_rate_limit("action")
         thread = await channel.create_thread(name=name, message=message)
         return [TextContent(type="text", text=f"Created thread {thread.name} ({thread.id})")]
     except Exception as e:
@@ -55,6 +68,7 @@ async def archive_thread(arguments: dict):
         if not isinstance(thread, discord.Thread):
             return [TextContent(type="text", text="Channel is not a thread")]
             
+        await apply_rate_limit("action")
         await thread.edit(archived=archived)
         return [TextContent(type="text", text=f"Set thread archived={archived}")]
     except Exception as e:
@@ -156,6 +170,9 @@ async def send_thread_message(arguments: dict):
     try:
         thread_id = int(arguments["thread_id"])
         content = arguments["content"]
+        content_error = validate_message_content(content)
+        if content_error:
+            return [TextContent(type="text", text=content_error)]
         
         thread = client.get_channel(thread_id)
         if not thread:
@@ -169,6 +186,7 @@ async def send_thread_message(arguments: dict):
         if not isinstance(thread, discord.Thread):
             return [TextContent(type="text", text=f"Channel {thread_id} is not a thread")]
         
+        await apply_rate_limit("message")
         message = await thread.send(content)
         return [TextContent(type="text", text=f"Message sent to thread (message_id={message.id})")]
     except Exception as e:

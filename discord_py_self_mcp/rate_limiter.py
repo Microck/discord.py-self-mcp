@@ -2,8 +2,9 @@ import os
 import time
 import asyncio
 from typing import Dict, Optional, Any
-from dataclasses import dataclass, field
-from threading import Lock
+from dataclasses import dataclass
+
+from discord_py_self_mcp.logging_utils import log_to_stderr
 
 
 @dataclass
@@ -13,7 +14,6 @@ class RateLimitConfig:
     messages_per_second: int = 1
     actions_per_minute: int = 5
     cooldown_on_limit: int = 60
-    respect_global_delay: bool = True
 
 
 class RateLimiter:
@@ -23,7 +23,7 @@ class RateLimiter:
         self._message_timestamps: list = []
         self._action_timestamps: list = []
         self._cooldown_until: float = 0
-        self._lock = Lock()
+        self._lock = asyncio.Lock()
 
         self._last_action_time: float = 0
         self._min_action_interval: float = 1.0
@@ -36,8 +36,6 @@ class RateLimiter:
             messages_per_second=int(os.getenv("RATE_LIMIT_MESSAGES_PER_SECOND", "1")),
             actions_per_minute=int(os.getenv("RATE_LIMIT_ACTIONS_PER_MINUTE", "5")),
             cooldown_on_limit=int(os.getenv("RATE_LIMIT_COOLDOWN", "60")),
-            respect_global_delay=os.getenv("RATE_LIMIT_RESPECT_GLOBAL", "true").lower()
-            == "true",
         )
 
     def is_enabled(self) -> bool:
@@ -51,7 +49,7 @@ class RateLimiter:
         if not self.is_enabled():
             return
 
-        with self._lock:
+        async with self._lock:
             now = time.time()
 
             if now < self._cooldown_until:
@@ -114,15 +112,14 @@ class RateLimiter:
 
     def _trigger_cooldown(self, reason: str):
         self._cooldown_until = time.time() + self.config.cooldown_on_limit
-        print(
+        log_to_stderr(
             f"[RATE_LIMIT] Cooldown triggered: {reason}. Cooldown for {self.config.cooldown_on_limit}s"
         )
 
     def reset(self):
-        with self._lock:
-            self._message_timestamps.clear()
-            self._action_timestamps.clear()
-            self._cooldown_until = 0
+        self._message_timestamps.clear()
+        self._action_timestamps.clear()
+        self._cooldown_until = 0
 
     def get_stats(self) -> Dict[str, Any]:
         now = time.time()

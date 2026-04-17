@@ -1,7 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from ..tool_utils import apply_rate_limit
+from .registry import registry
 
 @registry.register(
     name="create_channel",
@@ -33,8 +35,10 @@ async def create_channel(arguments: dict):
             category = guild.get_channel(int(category_id))
 
         if channel_type == "text":
+            await apply_rate_limit("action")
             channel = await guild.create_text_channel(name, category=category)
         elif channel_type == "voice":
+            await apply_rate_limit("action")
             channel = await guild.create_voice_channel(name, category=category)
         else:
             return [TextContent(type="text", text="Invalid channel type")]
@@ -60,7 +64,8 @@ async def delete_channel(arguments: dict):
         channel = client.get_channel(channel_id)
         if not channel:
              return [TextContent(type="text", text="Channel not found")]
-        
+
+        await apply_rate_limit("action")
         await channel.delete()
         return [TextContent(type="text", text=f"Deleted channel {channel.name}")]
     except Exception as e:
@@ -86,7 +91,7 @@ async def list_channels(arguments: dict):
         
         channels = []
         for channel in guild.channels:
-            channels.append(f"{channel.name} ({channel.id}) - {channel.type}")
+            channels.append(f"{channel.name} ({channel.id}) - {channel.type.name}")
             
         return [TextContent(type="text", text="\n".join(channels))]
     except Exception as e:

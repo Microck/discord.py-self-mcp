@@ -1,7 +1,9 @@
 import discord
 from mcp.types import TextContent
-from .registry import registry
+
 from ..bot import client
+from ..tool_utils import apply_rate_limit
+from .registry import registry
 
 @registry.register(
     name="add_reaction",
@@ -24,7 +26,8 @@ async def add_reaction(arguments: dict):
         
         channel = client.get_channel(channel_id) or await client.fetch_channel(channel_id)
         message = await channel.fetch_message(message_id)
-        
+
+        await apply_rate_limit("action")
         await message.add_reaction(emoji)
         return [TextContent(type="text", text=f"Added reaction {emoji} to message {message_id}")]
     except Exception as e:
@@ -53,12 +56,14 @@ async def remove_reaction(arguments: dict):
         
         channel = client.get_channel(channel_id) or await client.fetch_channel(channel_id)
         message = await channel.fetch_message(message_id)
-        
+
         if user_id:
             user = await client.fetch_user(int(user_id))
+            await apply_rate_limit("action")
             await message.remove_reaction(emoji, user)
             return [TextContent(type="text", text=f"Removed reaction {emoji} from {user.name}")]
         else:
+            await apply_rate_limit("action")
             await message.remove_reaction(emoji, client.user)
             return [TextContent(type="text", text=f"Removed own reaction {emoji}")]
     except Exception as e:

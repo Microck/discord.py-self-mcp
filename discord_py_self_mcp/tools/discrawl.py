@@ -33,7 +33,17 @@ def _default_discrawl_candidates() -> list[str]:
 def _resolve_discrawl_binary(arguments: dict) -> str:
     explicit = str(arguments.get("binary") or os.getenv("DISCRAWL_BIN") or "").strip()
     if explicit:
-        return explicit
+        if explicit == DEFAULT_DISCRAWL_BINARY:
+            return explicit
+
+        expanded = Path(explicit).expanduser()
+        if not expanded.is_absolute():
+            raise ValueError(
+                "binary must be the literal 'discrawl' or an absolute path to a discrawl executable"
+            )
+        if expanded.name != "discrawl":
+            raise ValueError("binary path must point to a discrawl executable")
+        return str(expanded)
 
     for candidate in _default_discrawl_candidates():
         if _binary_exists(candidate):
@@ -76,7 +86,11 @@ async def _run_discrawl(
     if timeout_seconds < 5 or timeout_seconds > 1800:
         return _text("timeout_seconds must be between 5 and 1800 seconds")
 
-    binary = _resolve_discrawl_binary(arguments)
+    try:
+        binary = _resolve_discrawl_binary(arguments)
+    except ValueError as exc:
+        return _text(str(exc))
+
     if not _binary_exists(binary):
         return _text(
             (

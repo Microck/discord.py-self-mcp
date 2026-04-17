@@ -16,7 +16,7 @@ dependencies = [
     "mcp",
     "python-dotenv",
     "playwright",
-    "hcaptcha-challenger[playwright]",
+    "hcaptcha-challenger",
     "loguru",
     "audioop-lts; python_version >= '3.13'",
     "camoufox[geoip]",
