@@ -1,3 +1,10 @@
+## [1.2.6](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.5...v1.2.6) (2026-04-17)
+
+
+### Bug Fixes
+
+* harden daemon runtime and align tool behavior ([4708265](https://github.com/Microck/discord.py-self-mcp/commit/47082654530b866af8cb4ded705e531e76c8b71f))
+
 ## [1.2.5](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.4...v1.2.5) (2026-04-17)
 
 
