@@ -1,3 +1,10 @@
+## [1.2.4](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.3...v1.2.4) (2026-04-17)
+
+
+### Bug Fixes
+
+* improve token extraction with localStorage fallback ([36eb54a](https://github.com/Microck/discord.py-self-mcp/commit/36eb54afd6ec1b2fb687424aa6e934ffd17eb6dd))
+
 ## [1.2.3](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.2...v1.2.3) (2026-04-11)
 
 
