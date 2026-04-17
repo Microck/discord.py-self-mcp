@@ -19,6 +19,20 @@ class HCaptchaSolver:
         playwright_browser=None,
         gemini_api_key: Optional[str] = None,
     ):
+        """Initialize the hCaptcha solver.
+
+        Args:
+            sitekey: The hCaptcha sitekey for the target site.
+            host: The hostname of the site presenting the CAPTCHA.
+            rqdata: Optional request data for the CAPTCHA challenge.
+            proxy: Optional proxy string (``user:pass@host:port`` or
+                ``host:port``).
+            debug: Whether to enable debug logging.
+            playwright_browser: An optional pre-launched Playwright browser
+                instance.
+            gemini_api_key: The Google Gemini API key used for visual
+                challenge solving.
+        """
         self.sitekey = sitekey
         self.host = host
         self.rqdata = rqdata
@@ -32,10 +46,21 @@ class HCaptchaSolver:
         self._page = None
 
     def _log(self, msg: str):
+        """Print a debug message when debug mode is enabled.
+
+        Args:
+            msg: The message to log.
+        """
         if self.debug:
             print(f"[HCAPTCHA-CHALLENGER] {msg}")
 
     async def _ensure_initialized(self):
+        """Lazily initialize the Playwright browser and hCaptcha agent.
+
+        This is an async method that launches a headless Chromium browser
+        (if one was not provided) and creates the :class:`AgentV` instance
+        used to solve challenges.
+        """
         if self._initialized:
             return
 
@@ -75,6 +100,14 @@ class HCaptchaSolver:
         self._log("Initialized successfully")
 
     def _get_playwright_proxy(self) -> Optional[Dict]:
+        """Parse the proxy string into a Playwright-compatible proxy dict.
+
+        Supports ``user:pass@host:port`` and ``host:port`` formats.
+
+        Returns:
+            Optional[Dict]: A proxy configuration dictionary for
+                Playwright, or ``None`` if no proxy is set.
+        """
         if not self.proxy_str:
             return None
 
@@ -85,7 +118,17 @@ class HCaptchaSolver:
         return {"server": f"http://{self.proxy_str}"}
 
     async def solve(self) -> Dict[str, Any]:
-        """Solve hCaptcha challenge and return token."""
+        """Solve an hCaptcha challenge and return the token.
+
+        This is an async method that navigates to the target site, waits
+        for a CAPTCHA challenge, and solves it using the Gemini-powered
+        agent.
+
+        Returns:
+            Dict[str, Any]: A dictionary with ``success`` (bool) and
+                either ``token`` (str) on success or ``error`` (str) on
+                failure.
+        """
         self._log("Starting solve process...")
 
         try:
@@ -112,7 +155,11 @@ class HCaptchaSolver:
             return {"success": False, "error": str(e)}
 
     async def close(self):
-        """Cleanup resources."""
+        """Clean up browser and Playwright resources.
+
+        This is an async method that closes the browser context and stops
+        the Playwright instance.
+        """
         try:
             if self._page:
                 await self._page.context.close()

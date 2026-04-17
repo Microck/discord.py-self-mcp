@@ -12,6 +12,19 @@ from ..bot import client
     }
 )
 async def list_friends(arguments: dict):
+    """List all friends of the authenticated user.
+
+    This is an async MCP tool handler that retrieves the user's friend
+    list from the Discord client cache.
+
+    Args:
+        arguments: An empty dictionary (no parameters required).
+
+    Returns:
+        list[TextContent]: A single-element list with friend names,
+            discriminators, and IDs separated by newlines, or an error
+            message.
+    """
     try:
         friends = client.friends
         if not friends:
@@ -37,6 +50,20 @@ async def list_friends(arguments: dict):
     }
 )
 async def send_friend_request(arguments: dict):
+    """Send a friend request to a user by username.
+
+    This is an async MCP tool handler that searches the local user cache
+    for a matching name (and optional discriminator) and sends a friend
+    request.
+
+    Args:
+        arguments: A dictionary containing ``username`` (str) and
+            optionally ``discriminator`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         username = arguments["username"]
         discriminator = arguments.get("discriminator")
@@ -75,6 +102,18 @@ async def send_friend_request(arguments: dict):
     }
 )
 async def add_friend(arguments: dict):
+    """Send a friend request to a user by their Discord user ID.
+
+    This is an async MCP tool handler that fetches the user by ID and
+    sends a friend request.
+
+    Args:
+        arguments: A dictionary containing ``user_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         user_id = int(arguments["user_id"])
         user = await client.fetch_user(user_id)
@@ -95,6 +134,18 @@ async def add_friend(arguments: dict):
     }
 )
 async def remove_friend(arguments: dict):
+    """Remove a user from the friends list.
+
+    This is an async MCP tool handler that removes the friendship with
+    the specified user.
+
+    Args:
+        arguments: A dictionary containing ``user_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         user_id = int(arguments["user_id"])
         user = client.get_user(user_id) or await client.fetch_user(user_id)

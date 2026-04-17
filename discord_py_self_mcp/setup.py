@@ -10,6 +10,16 @@ DISCORD_URL = "https://discord.com/login"
 
 
 def _detect_default_command() -> tuple[str, list[str]]:
+    """Detect the best command to launch the MCP server.
+
+    Prefers the ``discord-selfbot-mcp`` npm wrapper, then the Python
+    console script ``discord-py-self-mcp``, and finally falls back to
+    running the module directly with ``python3``.
+
+    Returns:
+        tuple[str, list[str]]: A two-element tuple of the command name and
+            a list of additional arguments.
+    """
     # Prefer the npm wrapper if installed; otherwise use the python console script;
     # fallback to running the module.
     if shutil.which("discord-selfbot-mcp"):
@@ -20,6 +30,15 @@ def _detect_default_command() -> tuple[str, list[str]]:
 
 
 def _default_client_config_candidates() -> list[dict]:
+    """Return a list of known MCP client configuration file paths.
+
+    Detects the current platform and returns candidate dictionaries with
+    ``label``, ``path``, and ``mode`` keys for OpenCode, Claude Desktop,
+    Codex, and Gemini CLI.
+
+    Returns:
+        list[dict]: A list of candidate configuration dictionaries.
+    """
     home = Path.home()
     results: list[dict] = []
 
@@ -129,11 +148,28 @@ def _default_client_config_candidates() -> list[dict]:
 
 
 def _read_json(path_str: str) -> dict:
+    """Read and parse a JSON file.
+
+    Args:
+        path_str: The file path to read.
+
+    Returns:
+        dict: The parsed JSON content.
+    """
     with open(path_str, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def _backup_file(path_str: str) -> str | None:
+    """Create a timestamped backup of a file.
+
+    Args:
+        path_str: The file path to back up.
+
+    Returns:
+        str | None: The path to the backup file, or ``None`` if the
+            original file does not exist.
+    """
     p = Path(path_str)
     if not p.exists():
         return None
@@ -144,6 +180,14 @@ def _backup_file(path_str: str) -> str | None:
 
 
 def _write_json(path_str: str, data: dict) -> None:
+    """Write a dictionary as pretty-printed JSON to a file.
+
+    Creates parent directories if they do not exist.
+
+    Args:
+        path_str: The file path to write.
+        data: The dictionary to serialize.
+    """
     p = Path(path_str)
     p.parent.mkdir(parents=True, exist_ok=True)
     with open(path_str, "w", encoding="utf-8") as f:
@@ -152,6 +196,18 @@ def _write_json(path_str: str, data: dict) -> None:
 
 
 def _upsert_server(existing: dict, token: str, mode: str) -> dict:
+    """Insert or update the discord-py-self MCP server entry in a config dict.
+
+    Args:
+        existing: The existing configuration dictionary to modify.
+        token: The Discord token to embed in the server entry environment.
+        mode: The config format mode. ``"mcpServers"`` writes to the
+            ``mcpServers`` key, while ``"opencode-mcp"`` writes to the
+            ``mcp`` key used by OpenCode.
+
+    Returns:
+        dict: The updated configuration dictionary.
+    """
     root = existing if isinstance(existing, dict) else {}
     command, args = _detect_default_command()
 
@@ -181,6 +237,16 @@ def _upsert_server(existing: dict, token: str, mode: str) -> dict:
 
 
 async def get_token_from_browser():
+    """Open a Chromium browser via Playwright for the user to log in to Discord.
+
+    This is an async method that watches for the authentication token after
+    the user completes the login flow. It tries webpack chunk extraction first
+    and falls back to ``localStorage``.
+
+    Returns:
+        str | None: The extracted Discord token, or ``None`` if Playwright
+            is not installed.
+    """
     try:
         import importlib
 
@@ -232,6 +298,15 @@ async def get_token_from_browser():
 
 
 def generate_config(token: str) -> dict:
+    """Generate a minimal MCP server configuration for the given token.
+
+    Args:
+        token: The Discord self-bot token.
+
+    Returns:
+        dict: A configuration dictionary with the ``mcpServers`` key
+            populated for ``discord-py-self``.
+    """
     # Most MCP clients spawn local servers via `command` + `env`.
     # This python package provides a console script: `discord-py-self-mcp`.
     command, args = _detect_default_command()
@@ -242,6 +317,12 @@ def generate_config(token: str) -> dict:
 
 
 async def async_main():
+    """Run the interactive setup wizard.
+
+    This is an async method that guides the user through token extraction
+    or entry, then writes the MCP server configuration to a chosen client
+    config file.
+    """
     print("=== Discord Selfbot MCP Setup ===")
     print("1. Extract token automatically (browser)")
     print("2. Enter token manually")
@@ -321,6 +402,10 @@ async def async_main():
 
 
 def main():
+    """Entry point for the ``discord-py-self-mcp-setup`` console script.
+
+    Runs the async setup wizard via ``asyncio.run``.
+    """
     asyncio.run(async_main())
 
 

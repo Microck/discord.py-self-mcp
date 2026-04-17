@@ -22,6 +22,20 @@ from ..bot import client
     },
 )
 async def create_invite(arguments: dict):
+    """Create an invite link for a Discord channel.
+
+    This is an async MCP tool handler that generates an invite with
+    configurable expiry, usage limits, and temporary membership.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str) and
+            optionally ``max_age`` (int, default 86400), ``max_uses``
+            (int, default 0), and ``temporary`` (bool, default False).
+
+    Returns:
+        list[TextContent]: A single-element list with the invite URL or
+            an error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         max_age = arguments.get("max_age", 86400)  # 24h default
@@ -53,6 +67,18 @@ async def create_invite(arguments: dict):
     },
 )
 async def list_invites(arguments: dict):
+    """List all invites for a Discord guild.
+
+    This is an async MCP tool handler that fetches and displays invite
+    codes with their current use counts.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with invite codes and use
+            counts separated by newlines, or an error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         guild = client.get_guild(guild_id)
@@ -80,6 +106,18 @@ async def list_invites(arguments: dict):
     },
 )
 async def delete_invite(arguments: dict):
+    """Delete (revoke) a Discord invite.
+
+    This is an async MCP tool handler that fetches the invite by code and
+    deletes it.
+
+    Args:
+        arguments: A dictionary containing ``invite_code`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         invite_code = arguments["invite_code"]
         # Need to fetch invite object to delete it? Or use guild.

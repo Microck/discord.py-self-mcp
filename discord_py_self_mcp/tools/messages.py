@@ -18,6 +18,19 @@ from ..bot import client
     },
 )
 async def send_message(arguments: dict):
+    """Send a text message to a Discord channel.
+
+    This is an async MCP tool handler that resolves the target channel by
+    ID (from cache or API) and sends the specified content.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str) and
+            ``content`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         content = arguments["content"]
@@ -59,6 +72,19 @@ async def send_message(arguments: dict):
     },
 )
 async def read_messages(arguments: dict):
+    """Read recent messages from a Discord channel.
+
+    This is an async MCP tool handler that fetches message history and
+    formats each message with its author name, content, and embed text.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str) and
+            optionally ``limit`` (int, default 50).
+
+    Returns:
+        list[TextContent]: A single-element list with newline-separated
+            messages in chronological order, or an error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         limit = arguments.get("limit", 50)
@@ -110,6 +136,20 @@ async def read_messages(arguments: dict):
     },
 )
 async def search_messages(arguments: dict):
+    """Search for messages containing specific text in a channel.
+
+    This is an async MCP tool handler that fetches recent history and
+    performs a case-insensitive substring match against both message
+    content and embed text.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``query`` (str), and optionally ``limit`` (int, default 50).
+
+    Returns:
+        list[TextContent]: A single-element list with matching messages in
+            chronological order, or a no-results / error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         query = arguments["query"].lower()
@@ -171,6 +211,19 @@ async def search_messages(arguments: dict):
     },
 )
 async def edit_message(arguments: dict):
+    """Edit a previously sent message.
+
+    This is an async MCP tool handler that verifies the message belongs to
+    the self-bot user before editing.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``message_id`` (str), and ``content`` (str) with the new text.
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
@@ -215,6 +268,19 @@ async def edit_message(arguments: dict):
     },
 )
 async def delete_message(arguments: dict):
+    """Delete a message from a channel.
+
+    This is an async MCP tool handler that resolves the channel and
+    message, then deletes it.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str) and
+            ``message_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])

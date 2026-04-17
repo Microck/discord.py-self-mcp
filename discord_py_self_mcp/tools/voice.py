@@ -15,6 +15,18 @@ from ..bot import client
     }
 )
 async def join_voice_channel(arguments: dict):
+    """Connect to a Discord voice channel.
+
+    This is an async MCP tool handler that joins the specified voice
+    channel.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         channel = client.get_channel(channel_id)
@@ -41,6 +53,18 @@ async def join_voice_channel(arguments: dict):
     }
 )
 async def leave_voice_channel(arguments: dict):
+    """Disconnect from the active voice channel in a guild.
+
+    This is an async MCP tool handler that disconnects the self-bot from
+    whatever voice channel it is in for the specified guild.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         guild = client.get_guild(guild_id)

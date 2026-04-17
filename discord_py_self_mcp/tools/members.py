@@ -17,6 +17,19 @@ from ..bot import client
     }
 )
 async def kick_member(arguments: dict):
+    """Kick a member from a Discord guild.
+
+    This is an async MCP tool handler that removes a member from the
+    specified guild.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str),
+            ``user_id`` (str), and optionally ``reason`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -50,6 +63,20 @@ async def kick_member(arguments: dict):
     }
 )
 async def ban_member(arguments: dict):
+    """Ban a user from a Discord guild.
+
+    This is an async MCP tool handler that bans a user, even if they are
+    not currently a member of the guild.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str),
+            ``user_id`` (str), and optionally ``reason`` (str) and
+            ``delete_message_days`` (int, default 0).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -82,6 +109,19 @@ async def ban_member(arguments: dict):
     }
 )
 async def unban_member(arguments: dict):
+    """Unban a previously banned user from a Discord guild.
+
+    This is an async MCP tool handler that lifts a ban for the specified
+    user.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str),
+            ``user_id`` (str), and optionally ``reason`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -112,6 +152,19 @@ async def unban_member(arguments: dict):
     }
 )
 async def add_role(arguments: dict):
+    """Add a role to a guild member.
+
+    This is an async MCP tool handler that assigns the specified role to
+    the target member.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str),
+            ``user_id`` (str), and ``role_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -149,6 +202,19 @@ async def add_role(arguments: dict):
     }
 )
 async def remove_role(arguments: dict):
+    """Remove a role from a guild member.
+
+    This is an async MCP tool handler that removes the specified role from
+    the target member.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str),
+            ``user_id`` (str), and ``role_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])

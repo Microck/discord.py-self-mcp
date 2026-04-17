@@ -17,6 +17,20 @@ from ..bot import client
     }
 )
 async def create_thread(arguments: dict):
+    """Create a new thread in a channel.
+
+    This is an async MCP tool handler that optionally attaches the thread
+    to a specific message.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``name`` (str), and optionally ``message_id`` (str) to start
+            the thread from.
+
+    Returns:
+        list[TextContent]: A single-element list with the created thread's
+            name and ID, or an error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         name = arguments["name"]
@@ -46,6 +60,19 @@ async def create_thread(arguments: dict):
     }
 )
 async def archive_thread(arguments: dict):
+    """Set the archived state of a thread.
+
+    This is an async MCP tool handler that archives or unarchives the
+    specified thread.
+
+    Args:
+        arguments: A dictionary containing ``thread_id`` (str) and
+            ``archived`` (bool).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         thread_id = int(arguments["thread_id"])
         archived = arguments["archived"]
@@ -72,6 +99,19 @@ async def archive_thread(arguments: dict):
     }
 )
 async def read_thread_messages(arguments: dict):
+    """Read recent messages from a thread.
+
+    This is an async MCP tool handler that fetches message history from
+    the specified thread.
+
+    Args:
+        arguments: A dictionary containing ``thread_id`` (str) and
+            optionally ``limit`` (int, default 50).
+
+    Returns:
+        list[TextContent]: A single-element list with newline-separated
+            messages in chronological order, or an error message.
+    """
     try:
         thread_id = int(arguments["thread_id"])
         limit = arguments.get("limit", 50)
@@ -113,6 +153,18 @@ async def read_thread_messages(arguments: dict):
     }
 )
 async def list_active_threads(arguments: dict):
+    """List all active threads in a channel.
+
+    This is an async MCP tool handler that enumerates threads belonging to
+    the specified channel.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with thread names, IDs,
+            and archive status, or an error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         
@@ -152,6 +204,19 @@ async def list_active_threads(arguments: dict):
     }
 )
 async def send_thread_message(arguments: dict):
+    """Send a text message to a thread.
+
+    This is an async MCP tool handler that posts the specified content to
+    the given thread.
+
+    Args:
+        arguments: A dictionary containing ``thread_id`` (str) and
+            ``content`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         thread_id = int(arguments["thread_id"])
         content = arguments["content"]

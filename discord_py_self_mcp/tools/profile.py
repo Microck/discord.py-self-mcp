@@ -16,6 +16,20 @@ from ..bot import client
     }
 )
 async def edit_profile(arguments: dict):
+    """Edit the self-bot user's profile.
+
+    This is an async MCP tool handler that updates profile fields such as
+    bio and accent color. Changing username or email requires the
+    ``password`` parameter.
+
+    Args:
+        arguments: A dictionary with optional keys ``bio`` (str),
+            ``accent_color`` (int), and ``password`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         # discord.py-self client.user.edit()
         kwargs = {}

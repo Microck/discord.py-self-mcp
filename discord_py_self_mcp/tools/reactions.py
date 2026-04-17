@@ -17,6 +17,20 @@ from ..bot import client
     }
 )
 async def add_reaction(arguments: dict):
+    """Add a reaction emoji to a Discord message.
+
+    This is an async MCP tool handler that resolves the target message and
+    adds the specified emoji reaction.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``message_id`` (str), and ``emoji`` (str — unicode emoji or
+            custom emoji ID).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
@@ -45,6 +59,21 @@ async def add_reaction(arguments: dict):
     }
 )
 async def remove_reaction(arguments: dict):
+    """Remove a reaction emoji from a Discord message.
+
+    This is an async MCP tool handler that removes the specified emoji
+    reaction. When ``user_id`` is provided the reaction for that user is
+    removed; otherwise the self-bot's own reaction is removed.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``message_id`` (str), ``emoji`` (str), and optionally
+            ``user_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])

@@ -8,6 +8,16 @@ from threading import Lock
 
 @dataclass
 class RateLimitConfig:
+    """Configuration for the rate limiter.
+
+    Attributes:
+        enabled: Whether rate limiting is active.
+        messages_per_minute: Maximum number of messages allowed per minute.
+        messages_per_second: Maximum number of messages allowed per second.
+        actions_per_minute: Maximum number of generic actions allowed per minute.
+        cooldown_on_limit: Seconds to cool down after a rate limit is hit.
+        respect_global_delay: Whether to respect Discord's global rate limit.
+    """
     enabled: bool = False
     messages_per_minute: int = 10
     messages_per_second: int = 1
@@ -18,6 +28,12 @@ class RateLimitConfig:
 
 class RateLimiter:
     def __init__(self, config: Optional[RateLimitConfig] = None):
+        """Initialize the rate limiter.
+
+        Args:
+            config: Optional rate-limit configuration. When ``None`` the
+                configuration is loaded from environment variables.
+        """
         self.config = config or self._load_from_env()
 
         self._message_timestamps: list = []
@@ -30,6 +46,11 @@ class RateLimiter:
 
     @classmethod
     def _load_from_env(cls) -> RateLimitConfig:
+        """Load rate-limit configuration from environment variables.
+
+        Returns:
+            RateLimitConfig: The configuration derived from env vars.
+        """
         return RateLimitConfig(
             enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
             messages_per_minute=int(os.getenv("RATE_LIMIT_MESSAGES_PER_MINUTE", "10")),
@@ -41,13 +62,32 @@ class RateLimiter:
         )
 
     def is_enabled(self) -> bool:
+        """Check whether rate limiting is currently enabled.
+
+        Returns:
+            bool: ``True`` if rate limiting is active.
+        """
         return self.config.enabled
 
     def get_cooldown_remaining(self) -> int:
+        """Return the number of seconds remaining in the current cooldown.
+
+        Returns:
+            int: Seconds left in cooldown, or ``0`` if not in cooldown.
+        """
         remaining = self._cooldown_until - time.time()
         return max(0, int(remaining))
 
     async def wait_if_needed(self, action_type: str = "message"):
+        """Enforce rate limits by sleeping if necessary.
+
+        This is an async method that checks the current rate of the given
+        action type and sleeps the coroutine when limits are approached.
+
+        Args:
+            action_type: The category of action to rate-limit. Accepted
+                values are ``"message"`` and ``"action"``.
+        """
         if not self.is_enabled():
             return
 
@@ -109,22 +149,42 @@ class RateLimiter:
                 self._last_action_time = now
 
     def _clean_timestamps(self, timestamps: list, window: int):
+        """Remove timestamps older than the given time window.
+
+        Args:
+            timestamps: The list of timestamps to clean (modified in-place).
+            window: The time window in seconds to retain.
+        """
         now = time.time()
         timestamps[:] = [t for t in timestamps if now - t < window]
 
     def _trigger_cooldown(self, reason: str):
+        """Activate the cooldown period.
+
+        Args:
+            reason: A human-readable description of why the cooldown was
+                triggered (used in log output).
+        """
         self._cooldown_until = time.time() + self.config.cooldown_on_limit
         print(
             f"[RATE_LIMIT] Cooldown triggered: {reason}. Cooldown for {self.config.cooldown_on_limit}s"
         )
 
     def reset(self):
+        """Clear all tracked timestamps and cancel any active cooldown."""
         with self._lock:
             self._message_timestamps.clear()
             self._action_timestamps.clear()
             self._cooldown_until = 0
 
     def get_stats(self) -> Dict[str, Any]:
+        """Return a snapshot of the current rate-limiter state.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing enabled status, cooldown
+                remaining, message and action counts for the last minute,
+                and the current configuration values.
+        """
         now = time.time()
         return {
             "enabled": self.is_enabled(),
@@ -147,6 +207,18 @@ _global_rate_limiter: Optional[RateLimiter] = None
 
 
 def get_rate_limiter(config: Optional[RateLimitConfig] = None) -> RateLimiter:
+    """Return the global singleton :class:`RateLimiter` instance.
+
+    Creates the instance on the first call using the provided or
+    environment-derived configuration.
+
+    Args:
+        config: Optional configuration used only when creating the instance
+            for the first time.
+
+    Returns:
+        RateLimiter: The global rate limiter.
+    """
     global _global_rate_limiter
     if _global_rate_limiter is None:
         _global_rate_limiter = RateLimiter(config)

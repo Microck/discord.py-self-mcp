@@ -18,6 +18,20 @@ from ..bot import client
     }
 )
 async def create_channel(arguments: dict):
+    """Create a new text or voice channel in a guild.
+
+    This is an async MCP tool handler that creates the channel under an
+    optional category parent.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str), ``name``
+            (str), optionally ``type`` (``"text"`` or ``"voice"``,
+            default ``"text"``), and ``category_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with the created channel's
+            name and ID, or an error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         name = arguments["name"]
@@ -55,6 +69,17 @@ async def create_channel(arguments: dict):
     }
 )
 async def delete_channel(arguments: dict):
+    """Delete a channel.
+
+    This is an async MCP tool handler that deletes the specified channel.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         channel = client.get_channel(channel_id)
@@ -78,6 +103,18 @@ async def delete_channel(arguments: dict):
     }
 )
 async def list_channels(arguments: dict):
+    """List all channels in a guild.
+
+    This is an async MCP tool handler that enumerates every channel in the
+    specified guild.
+
+    Args:
+        arguments: A dictionary containing ``guild_id`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with channel names, IDs,
+            and types separated by newlines, or an error message.
+    """
     try:
         guild_id = int(arguments["guild_id"])
         guild = client.get_guild(guild_id)

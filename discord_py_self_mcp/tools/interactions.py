@@ -23,6 +23,22 @@ from ..bot import client
     },
 )
 async def send_slash_command(arguments: dict):
+    """Execute a Discord slash command in a channel.
+
+    This is an async MCP tool handler that resolves the slash command by
+    name (with optional subcommands), optionally filtered by
+    ``application_id``, and invokes it with the provided options.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``command_name`` (str, may include subcommands separated by
+            spaces), optionally ``options`` (dict) and ``application_id``
+            (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         command_name = arguments["command_name"].strip()
@@ -54,6 +70,15 @@ async def send_slash_command(arguments: dict):
         subcommand_parts = parts[1:]
 
         async def _collect_commands(result):
+            """Collect command objects from various awaitable or iterable results.
+
+            Args:
+                result: An awaitable, async iterable, or plain iterable of
+                    slash commands.
+
+            Returns:
+                list: A list of resolved command objects.
+            """
             if inspect.isawaitable(result):
                 result = await result
             if result is None:
@@ -176,6 +201,20 @@ async def send_slash_command(arguments: dict):
     },
 )
 async def click_button(arguments: dict):
+    """Click a button component on a Discord message.
+
+    This is an async MCP tool handler that locates a button by
+    ``custom_id``, label, or grid position and clicks it.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``message_id`` (str), and optionally ``custom_id`` (str),
+            ``row`` (int), and ``column`` (int).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message. URL buttons return the URL string.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
@@ -249,6 +288,20 @@ async def click_button(arguments: dict):
     },
 )
 async def select_menu(arguments: dict):
+    """Select one or more options in a Discord select-menu component.
+
+    This is an async MCP tool handler that locates a select menu by
+    ``custom_id`` or grid position and chooses the specified values.
+
+    Args:
+        arguments: A dictionary containing ``channel_id`` (str),
+            ``message_id`` (str), ``values`` (list[str]), and optionally
+            ``custom_id`` (str), ``row`` (int), and ``column`` (int).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])

@@ -18,8 +18,15 @@ logging.getLogger("discord.client").setLevel(logging.WARNING)
 app = Server("discord-selfbot-mcp")
 
 
-@app.list_tools()
+@app.list_tool()
 async def list_tools() -> list[Tool]:
+    """Return all registered MCP tool definitions.
+
+    This is the MCP server handler for listing available tools.
+
+    Returns:
+        list[Tool]: A list of Tool objects representing all registered tools.
+    """
     return registry.get_tool_definitions()
 
 
@@ -27,10 +34,30 @@ async def list_tools() -> list[Tool]:
 async def call_tool(
     name: str, arguments: dict
 ) -> list[TextContent | ImageContent | EmbeddedResource]:
+    """Dispatch an MCP tool call to the appropriate registered handler.
+
+    This is the MCP server handler for invoking tools by name.
+
+    Args:
+        name: The registered name of the tool to call.
+        arguments: A dictionary of arguments to pass to the tool handler.
+
+    Returns:
+        list[TextContent | ImageContent | EmbeddedResource]: The result
+            content returned by the tool handler.
+    """
     return await registry.call_tool(name, arguments)
 
 
 async def run_app():
+    """Start the Discord self-bot client and the MCP stdio server.
+
+    Reads the ``DISCORD_TOKEN`` environment variable, launches the Discord
+    client as a background task, and then runs the MCP server over stdio.
+
+    Raises:
+        SystemExit: If ``DISCORD_TOKEN`` is not set.
+    """
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         sys.stderr.write(
@@ -53,6 +80,10 @@ async def run_app():
 
 
 def main():
+    """Entry point for the discord-py-self-mcp console script.
+
+    Runs the async application loop via ``asyncio.run``.
+    """
     asyncio.run(run_app())
 
 

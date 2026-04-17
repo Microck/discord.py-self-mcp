@@ -15,6 +15,19 @@ from ..bot import client
     }
 )
 async def set_status(arguments: dict):
+    """Set the self-bot's presence status.
+
+    This is an async MCP tool handler that updates the user's online
+    status to one of ``online``, ``idle``, ``dnd``, or ``invisible``.
+
+    Args:
+        arguments: A dictionary containing ``status`` (str) — one of
+            ``"online"``, ``"idle"``, ``"dnd"``, or ``"invisible"``.
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         status_str = arguments["status"]
         status_map = {
@@ -42,6 +55,20 @@ async def set_status(arguments: dict):
     }
 )
 async def set_activity(arguments: dict):
+    """Set the self-bot's activity (rich presence).
+
+    This is an async MCP tool handler that updates the user's activity
+    status (e.g. "Playing …", "Watching …").
+
+    Args:
+        arguments: A dictionary containing ``type`` (str — one of
+            ``"playing"``, ``"watching"``, ``"listening"``, or
+            ``"competing"``) and ``name`` (str).
+
+    Returns:
+        list[TextContent]: A single-element list with a confirmation or
+            error message.
+    """
     try:
         activity_type = arguments["type"]
         name = arguments["name"]

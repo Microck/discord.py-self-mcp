@@ -2,7 +2,19 @@ import discord
 
 
 def format_embed(embed: discord.Embed) -> str:
-    """Format a Discord embed into readable text."""
+    """Format a Discord embed into readable text.
+
+    Extracts the title, author, description, fields, thumbnail URL,
+    image URL, and footer from the embed and concatenates them with
+    labeled prefixes.
+
+    Args:
+        embed: The Discord embed object to format.
+
+    Returns:
+        str: A newline-separated string of labeled embed fields, or an
+            empty string if the input is not a :class:`discord.Embed`.
+    """
     if not isinstance(embed, discord.Embed):
         return ""
 

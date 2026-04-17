@@ -21,6 +21,19 @@ if (
 ):
 
     def _message_to_dict_compat(message, **kwargs):
+        """Compatibility shim for google.protobuf.json_format.MessageToDict.
+
+        Renames the deprecated ``including_default_value_fields`` keyword to
+        ``always_print_fields_with_no_presence`` which is used by newer
+        versions of protobuf.
+
+        Args:
+            message: The protobuf message to convert.
+            **kwargs: Keyword arguments forwarded to ``MessageToDict``.
+
+        Returns:
+            dict: The serialized protobuf message as a dictionary.
+        """
         if "including_default_value_fields" in kwargs:
             kwargs["always_print_fields_with_no_presence"] = kwargs.pop(
                 "including_default_value_fields"
@@ -35,6 +48,15 @@ rate_limiter = None
 
 
 def init_rate_limiter():
+    """Initialize the global rate limiter from environment variables.
+
+    Reads rate-limit configuration from the environment and stores the
+    resulting :class:`RateLimiter` in the module-level ``rate_limiter``
+    global.
+
+    Returns:
+        RateLimiter: The newly created rate limiter instance.
+    """
     global rate_limiter
     config = RateLimitConfig(
         enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
@@ -58,10 +80,16 @@ captcha_solver = None
 
 class SelfBot(discord.Client):
     def __init__(self):
+        """Initialize the SelfBot client and the rate limiter."""
         init_rate_limiter()
         super().__init__()
 
     async def on_ready(self):
+        """Handle the Discord ``READY`` event.
+
+        Logs the authenticated user, guild count, and private channel count.
+        Also prints rate-limiter stats when enabled.
+        """
         user_id = self.user.id if self.user else "unknown"
         print(f"[READY] Logged in as {self.user} (ID: {user_id})")
         print(f"[READY] Guilds: {len(self.guilds)}")
@@ -71,25 +99,66 @@ class SelfBot(discord.Client):
             print(f"[RATE_LIMIT] Active - {rate_limiter.get_stats()}")
 
     async def on_connect(self):
+        """Handle the Discord ``CONNECT`` event.
+
+        Logs that the gateway connection has been established.
+        """
         print("[CONNECT] Connected to Discord gateway")
 
     async def on_disconnect(self):
+        """Handle the Discord ``DISCONNECT`` event.
+
+        Logs that the gateway connection was lost.
+        """
         print("[DISCONNECT] Disconnected from Discord gateway")
 
     async def on_error(self, event, *args, **kwargs):
+        """Handle an unhandled exception from a Discord event.
+
+        Args:
+            event: The event name or exception instance that caused the error.
+            *args: Positional arguments from the original event handler.
+            **kwargs: Keyword arguments from the original event handler.
+        """
         if isinstance(event, Exception):
             print(f"[ERROR] {type(event).__name__}: {event}")
         else:
             print(f"[ERROR] Event: {event}")
 
     async def on_resumed(self):
+        """Handle the Discord ``RESUMED`` event.
+
+        Logs that a dropped session has been successfully resumed.
+        """
         print("[RESUMED] Session resumed")
 
     async def on_captcha(self, data: Dict[str, Any]) -> str:
+        """Handle a CAPTCHA challenge from Discord.
+
+        This is called automatically by discord.py-self when a CAPTCHA is
+        required during an API request.
+
+        Args:
+            data: The CAPTCHA challenge payload from Discord.
+
+        Returns:
+            str: The solved CAPTCHA token.
+        """
         return await solve_captcha()
 
 
 async def solve_captcha() -> str:
+    """Solve an hCaptcha challenge using the Gemini-powered solver.
+
+    Lazily initializes the :class:`HCaptchaSolver` on first invocation.
+    Requires the ``GEMINI_API_KEY`` environment variable to be set.
+
+    Returns:
+        str: The solved hCaptcha token.
+
+    Raises:
+        Exception: If ``GEMINI_API_KEY`` is not set or the solve fails.
+    """
     global captcha_solver
     print(f"[CAPTCHA] Triggered")
 

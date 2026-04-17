@@ -17,11 +17,28 @@ Response = list[TextContent | ImageContent | EmbeddedResource]
 
 
 def _text(value: str) -> Response:
+    """Wrap a plain-text string into a single-element MCP response list.
+
+    Args:
+        value: The text content to wrap.
+
+    Returns:
+        Response: A list containing one :class:`TextContent` element.
+    """
     output: Response = [TextContent(type="text", text=value)]
     return output
 
 
 def _default_discrawl_candidates() -> list[str]:
+    """Return candidate file paths for the discrawl binary.
+
+    Checks the sibling ``discrawl-self/bin/discrawl`` path relative to
+    the repository root, then falls back to the bare ``discrawl`` name
+    for ``PATH`` resolution.
+
+    Returns:
+        list[str]: A list of candidate binary paths.
+    """
     repo_root = Path(__file__).resolve().parents[2]
     workspace_dir = repo_root.parent
     return [
@@ -31,6 +48,17 @@ def _default_discrawl_candidates() -> list[str]:
 
 
 def _resolve_discrawl_binary(arguments: dict) -> str:
+    """Determine the discrawl binary path from arguments, env, or defaults.
+
+    Checks the ``binary`` argument key, then the ``DISCRAWL_BIN``
+    environment variable, and finally the default candidate list.
+
+    Args:
+        arguments: The tool arguments dictionary.
+
+    Returns:
+        str: The resolved binary path or name.
+    """
     explicit = str(arguments.get("binary") or os.getenv("DISCRAWL_BIN") or "").strip()
     if explicit:
         return explicit
@@ -43,12 +71,29 @@ def _resolve_discrawl_binary(arguments: dict) -> str:
 
 
 def _truncate_output(value: str) -> str:
+    """Truncate output text to ``MAX_OUTPUT_CHARS`` characters.
+
+    Args:
+        value: The text to potentially truncate.
+
+    Returns:
+        str: The original text if within the limit, or a truncated version
+            with an ellipsis suffix.
+    """
     if len(value) <= MAX_OUTPUT_CHARS:
         return value
     return value[:MAX_OUTPUT_CHARS] + "\n... output truncated ..."
 
 
 def _binary_exists(binary: str) -> bool:
+    """Check whether a binary exists on disk or on the system ``PATH``.
+
+    Args:
+        binary: The binary name or absolute/relative path.
+
+    Returns:
+        bool: ``True`` if the binary is found.
+    """
     if not binary:
         return False
     if shutil.which(binary):
@@ -59,6 +104,21 @@ def _binary_exists(binary: str) -> bool:
 async def _run_discrawl(
     arguments: dict,
 ) -> Response:
+    """Execute a discrawl CLI command as a subprocess.
+
+    This is an async method that builds the command line from the provided
+    arguments, runs the process with a timeout, and returns the captured
+    stdout and stderr.
+
+    Args:
+        arguments: A dictionary with keys ``command`` (str), optionally
+            ``args`` (list[str]), ``config_path`` (str), ``binary`` (str),
+            and ``timeout_seconds`` (int).
+
+    Returns:
+        Response: A single-element list with the combined command output
+            or an error message.
+    """
     command = str(arguments.get("command", "")).strip()
     if not command:
         return _text("Missing required field: command")
@@ -163,10 +223,35 @@ async def _run_discrawl(
     },
 )
 async def run_discrawl(arguments: dict) -> Response:
+    """Run an arbitrary discrawl CLI command via the MCP interface.
+
+    This is an async MCP tool handler that delegates to
+    :func:`_run_discrawl`.
+
+    Args:
+        arguments: A dictionary with ``command`` (str) and optional
+            ``args``, ``config_path``, ``binary``, and ``timeout_seconds``.
+
+    Returns:
+        Response: The command output or error message.
+    """
     return await _run_discrawl(arguments)
 
 
 def _base_discrawl_arguments(arguments: dict, command: str, args: list[str]) -> dict:
+    """Build a minimal arguments dict for a discrawl subcommand.
+
+    Copies ``config_path``, ``binary``, and ``timeout_seconds`` from the
+    original arguments when present.
+
+    Args:
+        arguments: The original MCP tool arguments.
+        command: The discrawl subcommand name.
+        args: Positional arguments and flags for the subcommand.
+
+    Returns:
+        dict: A new arguments dictionary suitable for :func:`_run_discrawl`.
+    """
     payload = {
         "command": command,
         "args": args,
@@ -178,6 +263,15 @@ def _base_discrawl_arguments(arguments: dict, command: str, args: list[str]) -> 
 
 
 def _append_value(args: list[str], flag: str, value: object) -> None:
+    """Append a CLI flag and its value to an argument list.
+
+    Skips empty or whitespace-only values.
+
+    Args:
+        args: The argument list to modify in-place.
+        flag: The flag name (e.g. ``--guild``).
+        value: The value to stringify and append.
+    """
     text = str(value).strip()
     if text:
         args.extend([flag, text])
@@ -206,6 +300,17 @@ def _append_value(args: list[str], flag: str, value: object) -> None:
     },
 )
 async def discrawl_doctor(arguments: dict) -> Response:
+    """Run the ``discrawl doctor`` diagnostic subcommand.
+
+    This is an async MCP tool handler.
+
+    Args:
+        arguments: Optional keys ``config_path``, ``binary``, and
+            ``timeout_seconds``.
+
+    Returns:
+        Response: The diagnostic output or error message.
+    """
     return await _run_discrawl(_base_discrawl_arguments(arguments, "doctor", []))
 
 
@@ -232,6 +337,17 @@ async def discrawl_doctor(arguments: dict) -> Response:
     },
 )
 async def discrawl_status(arguments: dict) -> Response:
+    """Run the ``discrawl status`` subcommand.
+
+    This is an async MCP tool handler.
+
+    Args:
+        arguments: Optional keys ``config_path``, ``binary``, and
+            ``timeout_seconds``.
+
+    Returns:
+        Response: The status output or error message.
+    """
     return await _run_discrawl(_base_discrawl_arguments(arguments, "status", []))
 
 
@@ -286,6 +402,20 @@ async def discrawl_status(arguments: dict) -> Response:
     },
 )
 async def discrawl_sync(arguments: dict) -> Response:
+    """Run the ``discrawl sync`` subcommand with typed options.
+
+    This is an async MCP tool handler that translates the provided options
+    into the appropriate CLI flags.
+
+    Args:
+        arguments: A dictionary with optional keys ``guild``, ``guilds``,
+            ``channels``, ``since``, ``concurrency``, ``full``,
+            ``with_embeddings``, ``config_path``, ``binary``, and
+            ``timeout_seconds``.
+
+    Returns:
+        Response: The sync output or error message.
+    """
     args: list[str] = []
     if arguments.get("full") is True:
         args.append("--full")
@@ -354,6 +484,20 @@ async def discrawl_sync(arguments: dict) -> Response:
     },
 )
 async def discrawl_search(arguments: dict) -> Response:
+    """Run the ``discrawl search`` subcommand with typed options.
+
+    This is an async MCP tool handler that performs a full-text search
+    across indexed Discord messages.
+
+    Args:
+        arguments: A dictionary with ``query`` (str) and optional keys
+            ``guild``, ``channel``, ``author``, ``limit``,
+            ``include_empty``, ``config_path``, ``binary``, and
+            ``timeout_seconds``.
+
+    Returns:
+        Response: The search results or error message.
+    """
     query = str(arguments.get("query", "")).strip()
     if not query:
         return _text("Missing required field: query")
@@ -429,6 +573,20 @@ async def discrawl_search(arguments: dict) -> Response:
     },
 )
 async def discrawl_messages(arguments: dict) -> Response:
+    """Run the ``discrawl messages`` subcommand with typed options.
+
+    This is an async MCP tool handler that retrieves stored messages from
+    the discrawl index.
+
+    Args:
+        arguments: A dictionary with optional keys ``channel``, ``author``,
+            ``guild``, ``since``, ``days``, ``limit``, ``all``,
+            ``include_empty``, ``config_path``, ``binary``, and
+            ``timeout_seconds``.
+
+    Returns:
+        Response: The message rows or error message.
+    """
     args: list[str] = []
     if arguments.get("channel") is not None:
         _append_value(args, "--channel", arguments["channel"])
@@ -501,6 +659,20 @@ async def discrawl_messages(arguments: dict) -> Response:
     },
 )
 async def discrawl_mentions(arguments: dict) -> Response:
+    """Run the ``discrawl mentions`` subcommand with typed options.
+
+    This is an async MCP tool handler that retrieves messages containing
+    mentions of a specific user or role from the discrawl index.
+
+    Args:
+        arguments: A dictionary with optional keys ``target``, ``type``
+            (``"user"`` or ``"role"``), ``channel``, ``guild``, ``since``,
+            ``days``, ``limit``, ``config_path``, ``binary``, and
+            ``timeout_seconds``.
+
+    Returns:
+        Response: The mention rows or error message.
+    """
     mention_type = arguments.get("type")
     if mention_type is not None:
         text = str(mention_type).strip().lower()
