@@ -212,13 +212,18 @@ async def get_token_from_browser():
         token = None
         while not token:
             try:
-                token = await page.evaluate(r"""
-                    (webpackChunkdiscord_app.push([[],{},e=>{m=[];for(let c in e.c)m.push(e.c[c])}]),m).find(m=>m?.exports?.default?.getToken).exports.default.getToken()
-                """)
+                token = await page.evaluate(
+                    """() => {
+                    const iframe = document.createElement('iframe');
+                    document.body.appendChild(iframe);
+                    const token = iframe.contentWindow.localStorage.getItem('token');
+                    iframe.remove();
+                    return token ? JSON.parse(token) : null;
+                }""")
                 if token:
                     break
-            except:
-                pass
+            except Exception as e:
+                print(f"Error: {e}")
             await asyncio.sleep(1)
 
         print(f"Token found: {token[:20]}...{token[-5:]}")
