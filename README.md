@@ -11,7 +11,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="license">
   <img src="https://img.shields.io/badge/language-python-blue" alt="language">
-  <img src="https://img.shields.io/badge/npm-%40discord--selfbot--mcp-orange" alt="npm">
+  <a href="https://www.npmjs.com/package/discord-selfbot-mcp"><img src="https://img.shields.io/npm/v/discord-selfbot-mcp?color=orange&label=npm" alt="npm"></a>
   <img src="https://img.shields.io/badge/mcp-sdk-orange" alt="mcp">
   <img src="https://img.shields.io/badge/skill-cli-purple" alt="skill">
   <a href="https://github.com/Microck/opencode-studio"><img src="https://img.shields.io/badge/opencode-studio-brown?logo=data%3Aimage%2Fpng%3Bbase64%2CiVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAABiElEQVR4nF2Sv0tWcRTGPyeVIpCWwmyJGqQagsqCsL2hhobsD3BvdWhoj/6CiIKaoqXBdMjKRWwQgqZ%2BokSvkIhg9BOT9xPn9Vx79cD3cu6953zP8zznCQB1V0S01d3AKeAKcBVYA94DjyJioru2k9SHE%2Bqc%2Bkd9rL7yf7TUm%2BpQ05yPUM%2Bo626Pp%2BqE2q7GGfWrOpjNnWnAOPAGeAK8Bb4U5D3AJ%2BAQsAAMAHfVvl7gIrAf2Kjiz8BZYB3YC/wFpoGDwHfgEnA0oU7tgHiheEShyXxY/Vn/n6ljye8DcBiYAloRcV3tAdrV1xMRG%2Bo94DywCAwmx33AJHASWK7iiAjzNFOBl7WapPYtYdyo8RlLqVpOVPvq9KoH1NUuOneycaRefqnP1ftdUyiOt5KS%2BqLWdDpVzTXMl5It4Jr6u%2BQ/nhyBc8C7jpowGxGvmxuPqT9qyYuFIKdP71B8WT3SOKexXLrntvqxq3BefaiuFMQ0wqZftxl3M78MjBasfiDN/SAi0kFbtf8ACtKBWZBDoJEAAAAASUVORK5CYII%3D" alt="Add with OpenCode Studio" /></a>
@@ -190,7 +190,7 @@ powered by the robust `discord.py-self` library.
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
 | **interactions** | 3 | send_slash_command, click_button, select_menu |
-| **threads** | 5 | create_thread, send_thread_message, list_threads, read_thread_messages, archive_thread |
+| **threads** | 5 | create_thread, send_thread_message, list_active_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
 | **invites** | 3 | create_invite, list_invites, delete_invite |
 | **profile** | 1 | edit_profile |
@@ -329,11 +329,15 @@ discord_py_self_mcp/
 ├── main.py
 ├── setup.py
 ├── rate_limiter.py
+├── tool_utils.py
+├── cli_runtime.py
+├── logging_utils.py
 ├── captcha/
 │   └── solver.py
 └── tools/
     ├── channels.py
     ├── discrawl.py
+    ├── embed.py
     ├── guilds.py
     ├── interactions.py
     ├── invites.py
@@ -360,7 +364,7 @@ in addition to the mcp server, this package also provides a **skill/cli mode** f
 npm install -g discord-selfbot-mcp
 
 # create .env file
-echo "DISCORD_TOKEN=your_token" > .env
+echo "DISCORD_TOKEN=***" > .env
 
 # use skill mode (from package directory)
 python3 scripts/dcli.py send-message --channel 123 --content "Hello!"
@@ -387,4 +391,18 @@ see [SKILL.md](SKILL.md) for detailed documentation.
 
 ### license
 
-mit
+this project is licensed under the [mit license](./LICENSE).
+
+---
+
+### contributing
+
+issues and pull requests are welcome at [github.com/Microck/discord.py-self-mcp](https://github.com/Microck/discord.py-self-mcp).
+
+1. fork the repository
+2. create a feature branch (`git checkout -b feature/my-feature`)
+3. commit your changes (`git commit -m 'add my feature'`)
+4. push to the branch (`git push origin feature/my-feature`)
+5. open a pull request
+
+please ensure tests pass (`pytest`) before submitting.
