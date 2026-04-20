@@ -1,1 +1,1 @@
-from .solver import HCaptchaSolver
+from .solver import HCaptchaSolver as HCaptchaSolver

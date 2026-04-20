@@ -1,4 +1,3 @@
-import discord
 from mcp.types import TextContent
 
 from ..bot import client

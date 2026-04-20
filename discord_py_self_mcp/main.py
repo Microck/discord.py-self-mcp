@@ -40,14 +40,14 @@ async def run_app():
         )
         raise SystemExit(1)
 
-    logger.info(f"Starting Discord connection...")
+    logger.info("Starting Discord connection...")
     logger.info(
         f"Token (masked): {mask_secret(token)}"
     )
 
     # Start Discord client in background
     # We don't await it so it doesn't block the MCP server
-    discord_task = asyncio.create_task(client.start(token))
+    asyncio.create_task(client.start(token))
 
     async with stdio_server() as (read_stream, write_stream):
         await app.run(read_stream, write_stream, app.create_initialization_options())
