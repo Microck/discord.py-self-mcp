@@ -1,10 +1,9 @@
 import os
-import asyncio
 import discord
 import inspect
 import importlib
 import sys
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from google.protobuf import json_format
 from dotenv import load_dotenv
 from discord_py_self_mcp.captcha.solver import HCaptchaSolver

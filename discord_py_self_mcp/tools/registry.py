@@ -1,6 +1,5 @@
-from typing import Callable, Awaitable, Any
+from typing import Callable, Awaitable
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
-import inspect
 
 ToolHandler = Callable[[dict], Awaitable[list[TextContent | ImageContent | EmbeddedResource]]]
 
