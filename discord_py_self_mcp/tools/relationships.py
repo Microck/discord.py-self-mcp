@@ -13,6 +13,7 @@ from .registry import registry
     }
 )
 async def list_friends(arguments: dict):
+    """List all friends of the self-bot."""
     try:
         friends = client.friends
         if not friends:
@@ -38,6 +39,7 @@ async def list_friends(arguments: dict):
     }
 )
 async def send_friend_request(arguments: dict):
+    """Send a friend request by username (searches shared servers)."""
     try:
         username = arguments["username"]
         discriminator = arguments.get("discriminator")
@@ -77,6 +79,7 @@ async def send_friend_request(arguments: dict):
     }
 )
 async def add_friend(arguments: dict):
+    """Send a friend request by user ID."""
     try:
         user_id = int(arguments["user_id"])
         user = await client.fetch_user(user_id)
@@ -98,6 +101,7 @@ async def add_friend(arguments: dict):
     }
 )
 async def remove_friend(arguments: dict):
+    """Remove a user from the friends list."""
     try:
         user_id = int(arguments["user_id"])
         user = client.get_user(user_id) or await client.fetch_user(user_id)

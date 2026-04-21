@@ -18,6 +18,7 @@ from .registry import registry
     }
 )
 async def add_reaction(arguments: dict):
+    """Add an emoji reaction to a message."""
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
@@ -47,6 +48,7 @@ async def add_reaction(arguments: dict):
     }
 )
 async def remove_reaction(arguments: dict):
+    """Remove an emoji reaction from a message."""
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])

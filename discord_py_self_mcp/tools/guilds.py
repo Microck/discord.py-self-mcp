@@ -13,6 +13,7 @@ from .registry import registry
     }
 )
 async def list_guilds(arguments: dict):
+    """List all guilds the self-bot is a member of."""
     if not client.is_ready():
         return [TextContent(type="text", text=NOT_READY_TEXT)]
     
@@ -28,6 +29,7 @@ async def list_guilds(arguments: dict):
     }
 )
 async def get_user_info(arguments: dict):
+    """Return information about the currently logged-in user."""
     if not client.is_ready():
         return [TextContent(type="text", text=NOT_READY_TEXT)]
 

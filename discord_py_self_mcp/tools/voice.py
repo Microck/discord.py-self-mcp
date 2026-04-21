@@ -16,6 +16,7 @@ from ..tool_utils import apply_rate_limit
     }
 )
 async def join_voice_channel(arguments: dict):
+    """Connect to a voice channel."""
     try:
         channel_id = int(arguments["channel_id"])
         channel = client.get_channel(channel_id)
@@ -43,6 +44,7 @@ async def join_voice_channel(arguments: dict):
     }
 )
 async def leave_voice_channel(arguments: dict):
+    """Disconnect from the active voice channel in a guild."""
     try:
         guild_id = int(arguments["guild_id"])
         guild = client.get_guild(guild_id)

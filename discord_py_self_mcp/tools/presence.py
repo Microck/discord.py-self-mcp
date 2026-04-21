@@ -17,6 +17,7 @@ from .registry import registry
     }
 )
 async def set_status(arguments: dict):
+    """Set the self-bot presence status."""
     try:
         status_str = arguments["status"]
         status_map = {
@@ -45,6 +46,7 @@ async def set_status(arguments: dict):
     }
 )
 async def set_activity(arguments: dict):
+    """Set the self-bot activity (playing, watching, listening, competing)."""
     try:
         activity_type = arguments["type"]
         name = arguments["name"]

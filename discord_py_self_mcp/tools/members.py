@@ -18,6 +18,7 @@ from ..tool_utils import apply_rate_limit
     }
 )
 async def kick_member(arguments: dict):
+    """Kick a member from a guild."""
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -52,6 +53,7 @@ async def kick_member(arguments: dict):
     }
 )
 async def ban_member(arguments: dict):
+    """Ban a user from a guild, optionally deleting recent messages."""
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -85,6 +87,7 @@ async def ban_member(arguments: dict):
     }
 )
 async def unban_member(arguments: dict):
+    """Ban a user from a guild, optionally deleting recent messages."""
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -116,6 +119,7 @@ async def unban_member(arguments: dict):
     }
 )
 async def add_role(arguments: dict):
+    """Assign a role to a guild member."""
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])
@@ -154,6 +158,7 @@ async def add_role(arguments: dict):
     }
 )
 async def remove_role(arguments: dict):
+    """Remove a role from a guild member."""
     try:
         guild_id = int(arguments["guild_id"])
         user_id = int(arguments["user_id"])

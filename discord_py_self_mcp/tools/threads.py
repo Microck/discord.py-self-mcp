@@ -20,6 +20,7 @@ from .embed import format_message_line
     }
 )
 async def create_thread(arguments: dict):
+    """Create a new thread, optionally anchored to a message."""
     try:
         channel_id = int(arguments["channel_id"])
         name = arguments["name"]
@@ -60,6 +61,7 @@ async def create_thread(arguments: dict):
     }
 )
 async def archive_thread(arguments: dict):
+    """Archive or unarchive a thread."""
     try:
         thread_id = int(arguments["thread_id"])
         archived = arguments["archived"]
@@ -87,6 +89,7 @@ async def archive_thread(arguments: dict):
     }
 )
 async def read_thread_messages(arguments: dict):
+    """Read recent messages from a thread."""
     try:
         thread_id = int(arguments["thread_id"])
         limit = arguments.get("limit", 50)
@@ -128,6 +131,7 @@ async def read_thread_messages(arguments: dict):
     }
 )
 async def list_active_threads(arguments: dict):
+    """List active threads in a guild."""
     try:
         channel_id = int(arguments["channel_id"])
         
@@ -167,6 +171,7 @@ async def list_active_threads(arguments: dict):
     }
 )
 async def send_thread_message(arguments: dict):
+    """Send a message to a thread."""
     try:
         thread_id = int(arguments["thread_id"])
         content = arguments["content"]

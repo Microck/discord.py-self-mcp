@@ -16,6 +16,7 @@ from .registry import registry
     }
 )
 async def edit_profile(arguments: dict):
+    """Edit the self-bot profile bio and/or accent color."""
     try:
         kwargs = {}
         if "bio" in arguments:

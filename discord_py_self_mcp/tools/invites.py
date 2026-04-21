@@ -22,6 +22,7 @@ from ..tool_utils import apply_rate_limit
     },
 )
 async def create_invite(arguments: dict):
+    """Create an invite link for a channel."""
     try:
         channel_id = int(arguments["channel_id"])
         max_age = arguments.get("max_age", 86400)  # 24h default
@@ -54,6 +55,7 @@ async def create_invite(arguments: dict):
     },
 )
 async def list_invites(arguments: dict):
+    """List all invites for a guild."""
     try:
         guild_id = int(arguments["guild_id"])
         guild = client.get_guild(guild_id)
@@ -81,6 +83,7 @@ async def list_invites(arguments: dict):
     },
 )
 async def delete_invite(arguments: dict):
+    """Delete an invite by its code."""
     try:
         invite_code = arguments["invite_code"]
         # Need to fetch invite object to delete it? Or use guild.

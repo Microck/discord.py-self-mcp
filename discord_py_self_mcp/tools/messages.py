@@ -24,6 +24,7 @@ MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
     },
 )
 async def send_message(arguments: dict):
+    """Send a text message to a channel."""
     try:
         channel_id = int(arguments["channel_id"])
         content = arguments["content"]
@@ -69,6 +70,7 @@ async def send_message(arguments: dict):
     },
 )
 async def read_messages(arguments: dict):
+    """Read recent messages from a channel."""
     try:
         channel_id = int(arguments["channel_id"])
         limit = arguments.get("limit", 50)
@@ -112,6 +114,7 @@ async def read_messages(arguments: dict):
     },
 )
 async def search_messages(arguments: dict):
+    """Search messages in a guild by keyword with optional filters."""
     try:
         channel_id = int(arguments["channel_id"])
         query = arguments["query"].lower()
@@ -172,6 +175,7 @@ async def search_messages(arguments: dict):
     },
 )
 async def edit_message(arguments: dict):
+    """Edit the content of an existing message."""
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
@@ -220,6 +224,7 @@ async def edit_message(arguments: dict):
     },
 )
 async def delete_message(arguments: dict):
+    """Delete a message by ID."""
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])
@@ -281,6 +286,7 @@ async def delete_message(arguments: dict):
     },
 )
 async def get_message_attachments(arguments: dict):
+    """Download and return attachments from a message."""
     try:
         channel_id = int(arguments["channel_id"])
         message_id = int(arguments["message_id"])

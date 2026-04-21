@@ -9,6 +9,8 @@ from discord_py_self_mcp.logging_utils import log_to_stderr
 
 @dataclass
 class RateLimitConfig:
+    """Configuration dataclass for rate limiting behaviour."""
+
     enabled: bool = False
     messages_per_minute: int = 10
     messages_per_second: int = 1
@@ -17,7 +19,10 @@ class RateLimitConfig:
 
 
 class RateLimiter:
+    """Token-bucket rate limiter for Discord API actions."""
+
     def __init__(self, config: Optional[RateLimitConfig] = None):
+        """Initialize the rate limiter with an optional config."""
         self.config = config or self._load_from_env()
 
         self._message_timestamps: list = []
@@ -30,6 +35,7 @@ class RateLimiter:
 
     @classmethod
     def _load_from_env(cls) -> RateLimitConfig:
+        """Load rate limit configuration from environment variables."""
         return RateLimitConfig(
             enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
             messages_per_minute=int(os.getenv("RATE_LIMIT_MESSAGES_PER_MINUTE", "10")),
@@ -39,13 +45,16 @@ class RateLimiter:
         )
 
     def is_enabled(self) -> bool:
+        """Check whether rate limiting is active."""
         return self.config.enabled
 
     def get_cooldown_remaining(self) -> int:
+        """Return seconds remaining in the current cooldown, or 0."""
         remaining = self._cooldown_until - time.time()
         return max(0, int(remaining))
 
     async def wait_if_needed(self, action_type: str = "message"):
+        """Block until the action is allowed under the current rate limits."""
         if not self.is_enabled():
             return
 
@@ -117,11 +126,13 @@ class RateLimiter:
         )
 
     def reset(self):
+        """Clear all tracked timestamps and any active cooldown."""
         self._message_timestamps.clear()
         self._action_timestamps.clear()
         self._cooldown_until = 0
 
     def get_stats(self) -> Dict[str, Any]:
+        """Return a dict of current rate-limiter statistics."""
         now = time.time()
         return {
             "enabled": self.is_enabled(),
@@ -144,6 +155,7 @@ _global_rate_limiter: Optional[RateLimiter] = None
 
 
 def get_rate_limiter(config: Optional[RateLimitConfig] = None) -> RateLimiter:
+    """Return the global RateLimiter singleton, creating it if needed."""
     global _global_rate_limiter
     if _global_rate_limiter is None:
         _global_rate_limiter = RateLimiter(config)

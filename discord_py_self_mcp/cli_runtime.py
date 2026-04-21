@@ -7,6 +7,7 @@ _DEFAULT_RUNTIME_DIR = Path.home() / ".local" / "state" / APP_NAME
 
 
 def runtime_dir() -> Path:
+    """Return the runtime directory path (respects XDG_RUNTIME_DIR)."""
     base = os.getenv("XDG_RUNTIME_DIR")
     if base:
         return Path(base) / APP_NAME
@@ -21,10 +22,12 @@ LOG_FILE = RUNTIME_DIR / "daemon.log"
 
 
 def ensure_runtime_dir() -> Path:
+    """Return the runtime directory path (respects XDG_RUNTIME_DIR)."""
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     os.chmod(RUNTIME_DIR, 0o700)
     return RUNTIME_DIR
 
 
 def chmod_private(path: Path) -> None:
+    """Set file permissions to owner-only read/write (0600)."""
     os.chmod(path, 0o600)

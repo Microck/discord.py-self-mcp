@@ -21,6 +21,7 @@ app = Server("discord-selfbot-mcp")
 
 @app.list_tools()
 async def list_tools() -> list[Tool]:
+    """Return the list of available MCP tools."""
     return registry.get_tool_definitions()
 
 
@@ -28,10 +29,12 @@ async def list_tools() -> list[Tool]:
 async def call_tool(
     name: str, arguments: dict
 ) -> list[TextContent | ImageContent | EmbeddedResource]:
+    """Dispatch an MCP tool call by name with the given arguments."""
     return await registry.call_tool(name, arguments)
 
 
 async def run_app():
+    """Start the Discord client and MCP stdio server."""
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         sys.stderr.write(
@@ -54,6 +57,7 @@ async def run_app():
 
 
 def main():
+    """Entry point for the discord-py-self-mcp package."""
     asyncio.run(run_app())
 
 

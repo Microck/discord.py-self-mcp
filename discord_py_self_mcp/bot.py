@@ -35,6 +35,7 @@ rate_limiter = None
 
 
 def init_rate_limiter():
+    """Initialize the global rate limiter from environment variables."""
     global rate_limiter
     config = RateLimitConfig(
         enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
@@ -55,11 +56,14 @@ captcha_solver = None
 
 
 class SelfBot(discord.Client):
+    """Custom Discord client that integrates rate limiting and CAPTCHA solving."""
+
     def __init__(self):
         init_rate_limiter()
         super().__init__()
 
     async def on_ready(self):
+        """Log successful connection with guild and channel counts."""
         user_id = self.user.id if self.user else "unknown"
         log_to_stderr(f"[READY] Logged in as {self.user} (ID: {user_id})")
         log_to_stderr(f"[READY] Guilds: {len(self.guilds)}")
@@ -69,12 +73,15 @@ class SelfBot(discord.Client):
             log_to_stderr(f"[RATE_LIMIT] Active - {rate_limiter.get_stats()}")
 
     async def on_connect(self):
+        """Log gateway connection event."""
         log_to_stderr("[CONNECT] Connected to Discord gateway")
 
     async def on_disconnect(self):
+        """Log gateway disconnection event."""
         log_to_stderr("[DISCONNECT] Disconnected from Discord gateway")
 
     async def on_error(self, event, *args, **kwargs):
+        """Log unhandled event errors to stderr."""
         exc_type, exc_value, _ = sys.exc_info()
         if exc_type and exc_value:
             log_to_stderr(
@@ -84,13 +91,16 @@ class SelfBot(discord.Client):
         log_to_stderr(f"[ERROR] Event: {event}")
 
     async def on_resumed(self):
+        """Log session resume event."""
         log_to_stderr("[RESUMED] Session resumed")
 
     async def on_captcha(self, data: Dict[str, Any]) -> str:
+        """Handle CAPTCHA challenge from Discord."""
         return await solve_captcha()
 
 
 async def solve_captcha() -> str:
+    """Solve an hCaptcha challenge using the configured Gemini API key."""
     global captcha_solver
     log_to_stderr("[CAPTCHA] Triggered")
 

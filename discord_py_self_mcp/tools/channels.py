@@ -19,6 +19,7 @@ from .registry import registry
     }
 )
 async def create_channel(arguments: dict):
+    """Create a text or voice channel in a guild."""
     try:
         guild_id = int(arguments["guild_id"])
         name = arguments["name"]
@@ -58,6 +59,7 @@ async def create_channel(arguments: dict):
     }
 )
 async def delete_channel(arguments: dict):
+    """Delete a channel by ID."""
     try:
         channel_id = int(arguments["channel_id"])
         channel = client.get_channel(channel_id)
@@ -82,6 +84,7 @@ async def delete_channel(arguments: dict):
     }
 )
 async def list_channels(arguments: dict):
+    """List all channels in a guild."""
     try:
         guild_id = int(arguments["guild_id"])
         guild = client.get_guild(guild_id)
