@@ -3,6 +3,8 @@ import discord
 from .bot import rate_limiter
 
 DISCORD_MESSAGE_LIMIT = 2000
+DEFAULT_HISTORY_LIMIT = 50
+MAX_HISTORY_LIMIT = 200
 NOT_READY_TEXT = "Discord connection is not ready yet. Please try again in a few seconds."
 NON_MESSAGEABLE_TEXT = (
     "Cannot send messages to this channel. It may not support text messages."
@@ -32,3 +34,12 @@ def validate_message_content(content: str) -> str | None:
             f"Message content exceeds Discord's {DISCORD_MESSAGE_LIMIT} character limit"
         )
     return None
+
+
+def normalize_history_limit(limit: object, *, default: int = DEFAULT_HISTORY_LIMIT) -> int:
+    try:
+        normalized = int(limit)
+    except (TypeError, ValueError):
+        normalized = default
+
+    return max(1, min(normalized, MAX_HISTORY_LIMIT))

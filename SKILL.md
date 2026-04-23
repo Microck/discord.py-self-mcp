@@ -123,9 +123,6 @@ python3 scripts/dcli.py pin-message --channel CHANNEL_ID --message MESSAGE_ID
 # Create thread from message (in text channel)
 python3 scripts/dcli.py create-thread --channel CHANNEL_ID --name "Thread Name" --message MESSAGE_ID
 
-# Create standalone thread (in text channel)
-python3 scripts/dcli.py create-thread --channel CHANNEL_ID --name "Thread Name"
-
 # Create thread in forum channel (with initial content)
 python3 scripts/dcli.py create-thread --channel FORUM_CHANNEL_ID --name "Thread Name" --content "Initial post content"
 ```
@@ -176,11 +173,10 @@ python3 scripts/dcli.py read-recent-threads --guild GUILD_ID --within 4 --limit-
 
 #### Get User Info
 ```bash
-# Get current user info
+# Get current user info (supported in daemon mode)
 python3 scripts/dcli.py user-info
 
-# Get specific user info
-python3 scripts/dcli.py user-info --user USER_ID
+# Specific user lookup is not currently supported in daemon mode
 ```
 
 #### List Threads in Channel

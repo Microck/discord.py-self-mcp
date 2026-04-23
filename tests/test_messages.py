@@ -85,9 +85,11 @@ class FakeChannel(FakeMessageable):
     def __init__(self, *, messages_list=None, fetched_message=None):
         self._messages = messages_list or []
         self._fetched_message = fetched_message
+        self.last_history_limit = None
 
     def history(self, **kwargs):
         limit = kwargs.get("limit", len(self._messages))
+        self.last_history_limit = limit
         return FakeHistoryIterator(self._messages[:limit])
 
     async def fetch_message(self, message_id):
@@ -108,14 +110,21 @@ async def test_read_messages_includes_attachment_metadata(monkeypatch):
     attachment = FakeAttachment()
     fake_message = FakeMessage(message_id=123, attachments=[attachment])
     fake_channel = FakeChannel(messages_list=[fake_message])
+    rate_limit_calls = []
     monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
     monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        rate_limit_calls.append(action_type)
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
 
     result = await messages.read_messages({"channel_id": "1", "limit": 5})
 
     assert "message_id=123" in result[0].text
     assert "[Attachment 0] photo.png" in result[0].text
     assert "url=https://cdn.discordapp.com/photo.png" in result[0].text
+    assert rate_limit_calls == ["action"]
 
 
 @pytest.mark.asyncio
@@ -162,3 +171,28 @@ async def test_delete_message_blocks_other_users(monkeypatch):
 
     assert result[0].text == "Cannot delete messages from other users"
     assert fake_message.deleted is False
+
+
+@pytest.mark.asyncio
+async def test_search_messages_applies_rate_limit_and_caps_fetch_window(monkeypatch):
+    fake_messages = [
+        FakeMessage(message_id=index, content="hello world", clean_content="hello world")
+        for index in range(200)
+    ]
+    fake_channel = FakeChannel(messages_list=fake_messages)
+    rate_limit_calls = []
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        rate_limit_calls.append(action_type)
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.search_messages(
+        {"channel_id": "1", "query": "hello", "limit": 500}
+    )
+
+    assert rate_limit_calls == ["action"]
+    assert fake_channel.last_history_limit == 300
+    assert "message_id=" in result[0].text

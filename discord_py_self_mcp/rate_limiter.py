@@ -9,7 +9,7 @@ from discord_py_self_mcp.logging_utils import log_to_stderr
 
 @dataclass
 class RateLimitConfig:
-    enabled: bool = False
+    enabled: bool = True
     messages_per_minute: int = 10
     messages_per_second: int = 1
     actions_per_minute: int = 5
@@ -31,7 +31,7 @@ class RateLimiter:
     @classmethod
     def _load_from_env(cls) -> RateLimitConfig:
         return RateLimitConfig(
-            enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
+            enabled=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
             messages_per_minute=int(os.getenv("RATE_LIMIT_MESSAGES_PER_MINUTE", "10")),
             messages_per_second=int(os.getenv("RATE_LIMIT_MESSAGES_PER_SECOND", "1")),
             actions_per_minute=int(os.getenv("RATE_LIMIT_ACTIONS_PER_MINUTE", "5")),
@@ -50,61 +50,60 @@ class RateLimiter:
             return
 
         async with self._lock:
-            now = time.time()
-
-            if now < self._cooldown_until:
-                wait_time = self._cooldown_until - now
-                await asyncio.sleep(wait_time)
+            while True:
                 now = time.time()
 
-            if action_type == "message":
-                self._clean_timestamps(self._message_timestamps, 60)
-                self._clean_timestamps(self._message_timestamps, 1)
+                if now < self._cooldown_until:
+                    await asyncio.sleep(self._cooldown_until - now)
+                    continue
 
-                msg_in_minute = len(
-                    [t for t in self._message_timestamps if now - t < 60]
-                )
-                msg_in_second = len(
-                    [t for t in self._message_timestamps if now - t < 1]
-                )
+                if action_type == "message":
+                    self._clean_timestamps(self._message_timestamps, 60)
 
-                if msg_in_minute >= self.config.messages_per_minute:
-                    self._trigger_cooldown(
-                        f"Message rate limit reached ({self.config.messages_per_minute}/min)"
+                    msg_in_minute = len(self._message_timestamps)
+                    msg_in_second = sum(
+                        1 for timestamp in self._message_timestamps if now - timestamp < 1
                     )
+
+                    if msg_in_minute >= self.config.messages_per_minute:
+                        self._trigger_cooldown(
+                            f"Message rate limit reached ({self.config.messages_per_minute}/min)"
+                        )
+                        continue
+
+                    if msg_in_second >= self.config.messages_per_second:
+                        sleep_time = max(
+                            0.0,
+                            1.0 - (now - self._message_timestamps[-1]),
+                        )
+                        if sleep_time:
+                            await asyncio.sleep(sleep_time)
+                        continue
+
+                    self._message_timestamps.append(time.time())
                     return
 
-                if msg_in_second >= self.config.messages_per_second:
-                    sleep_time = (
-                        1.0 - (now - self._message_timestamps[-1])
-                        if self._message_timestamps
-                        else 1.0
-                    )
-                    await asyncio.sleep(sleep_time)
+                if action_type == "action":
+                    self._clean_timestamps(self._action_timestamps, 60)
+                    action_in_minute = len(self._action_timestamps)
+
+                    if action_in_minute >= self.config.actions_per_minute:
+                        self._trigger_cooldown(
+                            f"Action rate limit reached ({self.config.actions_per_minute}/min)"
+                        )
+                        continue
+
+                    time_since_last = now - self._last_action_time
+                    if time_since_last < self._min_action_interval:
+                        await asyncio.sleep(self._min_action_interval - time_since_last)
+                        continue
+
                     now = time.time()
-
-                self._message_timestamps.append(now)
-
-            elif action_type == "action":
-                self._clean_timestamps(self._action_timestamps, 60)
-
-                action_in_minute = len(
-                    [t for t in self._action_timestamps if now - t < 60]
-                )
-
-                if action_in_minute >= self.config.actions_per_minute:
-                    self._trigger_cooldown(
-                        f"Action rate limit reached ({self.config.actions_per_minute}/min)"
-                    )
+                    self._action_timestamps.append(now)
+                    self._last_action_time = now
                     return
 
-                time_since_last = now - self._last_action_time
-                if time_since_last < self._min_action_interval:
-                    await asyncio.sleep(self._min_action_interval - time_since_last)
-                    now = time.time()
-
-                self._action_timestamps.append(now)
-                self._last_action_time = now
+                return
 
     def _clean_timestamps(self, timestamps: list, window: int):
         now = time.time()
@@ -122,16 +121,13 @@ class RateLimiter:
         self._cooldown_until = 0
 
     def get_stats(self) -> Dict[str, Any]:
-        now = time.time()
+        self._clean_timestamps(self._message_timestamps, 60)
+        self._clean_timestamps(self._action_timestamps, 60)
         return {
             "enabled": self.is_enabled(),
             "cooldown_remaining": self.get_cooldown_remaining(),
-            "messages_last_minute": len(
-                [t for t in self._message_timestamps if now - t < 60]
-            ),
-            "actions_last_minute": len(
-                [t for t in self._action_timestamps if now - t < 60]
-            ),
+            "messages_last_minute": len(self._message_timestamps),
+            "actions_last_minute": len(self._action_timestamps),
             "config": {
                 "messages_per_minute": self.config.messages_per_minute,
                 "messages_per_second": self.config.messages_per_second,

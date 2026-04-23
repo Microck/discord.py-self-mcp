@@ -6,7 +6,12 @@ from mcp.types import BlobResourceContents, EmbeddedResource, ImageContent, Text
 from ..bot import client
 from .registry import registry
 from .embed import build_search_text, format_attachment, format_message_line
-from ..tool_utils import NON_MESSAGEABLE_TEXT, apply_rate_limit, validate_message_content
+from ..tool_utils import (
+    NON_MESSAGEABLE_TEXT,
+    apply_rate_limit,
+    normalize_history_limit,
+    validate_message_content,
+)
 
 MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
 
@@ -71,7 +76,7 @@ async def send_message(arguments: dict):
 async def read_messages(arguments: dict):
     try:
         channel_id = int(arguments["channel_id"])
-        limit = arguments.get("limit", 50)
+        limit = normalize_history_limit(arguments.get("limit"))
         channel = client.get_channel(channel_id)
         if not channel:
             try:
@@ -86,6 +91,7 @@ async def read_messages(arguments: dict):
         if not isinstance(channel, discord.abc.Messageable):
             return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
+        await apply_rate_limit("action")
         messages = []
         async for msg in channel.history(limit=limit):
             messages.append(format_message_line(msg))
@@ -115,7 +121,7 @@ async def search_messages(arguments: dict):
     try:
         channel_id = int(arguments["channel_id"])
         query = arguments["query"].lower()
-        limit = arguments.get("limit", 50)
+        limit = normalize_history_limit(arguments.get("limit"))
 
         channel = client.get_channel(channel_id)
         if not channel:
@@ -131,9 +137,10 @@ async def search_messages(arguments: dict):
         if not isinstance(channel, discord.abc.Messageable):
             return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
+        await apply_rate_limit("action")
         messages = []
         # Basic filtering using history since standard search API is not always reliable in selfbots without indexing
-        async for msg in channel.history(limit=limit * 2):  # Fetch double to filter
+        async for msg in channel.history(limit=min(limit * 2, limit + 100)):
             # Search in content, embeds, and attachment metadata
             search_text = build_search_text(msg)
 

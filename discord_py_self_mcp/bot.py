@@ -1,4 +1,3 @@
-import os
 import discord
 import inspect
 import importlib
@@ -9,7 +8,6 @@ from dotenv import load_dotenv
 from discord_py_self_mcp.captcha.solver import HCaptchaSolver
 from discord_py_self_mcp.rate_limiter import (
     RateLimiter,
-    RateLimitConfig,
 )
 from discord_py_self_mcp.logging_utils import log_to_stderr
 
@@ -36,17 +34,12 @@ rate_limiter = None
 
 def init_rate_limiter():
     global rate_limiter
-    config = RateLimitConfig(
-        enabled=os.getenv("RATE_LIMIT_ENABLED", "false").lower() == "true",
-        messages_per_minute=int(os.getenv("RATE_LIMIT_MESSAGES_PER_MINUTE", "10")),
-        messages_per_second=int(os.getenv("RATE_LIMIT_MESSAGES_PER_SECOND", "1")),
-        actions_per_minute=int(os.getenv("RATE_LIMIT_ACTIONS_PER_MINUTE", "5")),
-        cooldown_on_limit=int(os.getenv("RATE_LIMIT_COOLDOWN", "60")),
-    )
-    rate_limiter = RateLimiter(config)
-    if config.enabled:
+    rate_limiter = RateLimiter()
+    if rate_limiter.is_enabled():
         log_to_stderr(
-            f"[RATE_LIMIT] Enabled with config: {config.messages_per_minute} msg/min, {config.actions_per_minute} actions/min"
+            "[RATE_LIMIT] Enabled with config: "
+            f"{rate_limiter.config.messages_per_minute} msg/min, "
+            f"{rate_limiter.config.actions_per_minute} actions/min"
         )
     return rate_limiter
 

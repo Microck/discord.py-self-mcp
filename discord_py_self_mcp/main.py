@@ -1,20 +1,12 @@
 import asyncio
 import os
-import logging
 import sys
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 from discord_py_self_mcp.bot import client
-from discord_py_self_mcp.logging_utils import mask_secret
+from discord_py_self_mcp.logging_utils import log_to_stderr, mask_secret
 from discord_py_self_mcp.tools import registry
-
-# Suppress logging to stderr to avoid interfering with MCP stdio
-logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
-logger = logging.getLogger("discord-selfbot-mcp")
-# Silence discord library logging
-logging.getLogger("discord").setLevel(logging.WARNING)
-logging.getLogger("discord.client").setLevel(logging.WARNING)
 
 app = Server("discord-selfbot-mcp")
 
@@ -40,10 +32,8 @@ async def run_app():
         )
         raise SystemExit(1)
 
-    logger.info("Starting Discord connection...")
-    logger.info(
-        f"Token (masked): {mask_secret(token)}"
-    )
+    log_to_stderr("[STARTUP] Starting Discord connection")
+    log_to_stderr(f"[STARTUP] DISCORD_TOKEN: {mask_secret(token)}")
 
     # Start Discord client in background
     # We don't await it so it doesn't block the MCP server

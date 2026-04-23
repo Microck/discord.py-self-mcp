@@ -14,7 +14,11 @@ from .embed import format_message_line
         "properties": {
             "channel_id": {"type": "string"},
             "name": {"type": "string"},
-            "message_id": {"type": "string", "description": "Optional message to start thread from"}
+            "message_id": {"type": "string", "description": "Optional message to start thread from"},
+            "content": {
+                "type": "string",
+                "description": "Initial post content for forum thread creation",
+            },
         },
         "required": ["channel_id", "name"]
     }
@@ -24,13 +28,28 @@ async def create_thread(arguments: dict):
         channel_id = int(arguments["channel_id"])
         name = arguments["name"]
         message_id = arguments.get("message_id")
+        content = arguments.get("content")
         
         channel = client.get_channel(channel_id) or await client.fetch_channel(channel_id)
-        
+
+        if isinstance(channel, discord.ForumChannel):
+            thread_content = content or name or "New thread"
+            content_error = validate_message_content(thread_content)
+            if content_error:
+                return [TextContent(type="text", text=content_error)]
+
+            await apply_rate_limit("action")
+            thread_with_message = await channel.create_thread(
+                name=name,
+                content=thread_content,
+            )
+            thread = getattr(thread_with_message, "thread", thread_with_message)
+            return [TextContent(type="text", text=f"Created thread {thread.name} ({thread.id})")]
+
         message = None
         if message_id:
             message = await channel.fetch_message(int(message_id))
-        elif not isinstance(channel, discord.ForumChannel):
+        else:
             return [
                 TextContent(
                     type="text",

@@ -298,13 +298,13 @@ built-in rate limiting to prevent account bans. configurable via environment var
 
 | variable | default | description |
 |----------|---------|-------------|
-| `RATE_LIMIT_ENABLED` | `false` | Enable/disable rate limiting |
+| `RATE_LIMIT_ENABLED` | `true` | Enable/disable rate limiting |
 | `RATE_LIMIT_MESSAGES_PER_MINUTE` | `10` | Max messages per minute |
 | `RATE_LIMIT_MESSAGES_PER_SECOND` | `1` | Max messages per second |
 | `RATE_LIMIT_ACTIONS_PER_MINUTE` | `5` | Max actions (joins, etc.) per minute |
 | `RATE_LIMIT_COOLDOWN` | `60` | Cooldown duration when limit hit (seconds) |
 
-> **recommended**: Enable rate limiting (`RATE_LIMIT_ENABLED=true`) to reduce ban risk.
+> rate limiting is enabled by default to reduce ban risk. Only disable it if you are deliberately taking responsibility for raw Discord API pacing yourself.
 
 ---
 
