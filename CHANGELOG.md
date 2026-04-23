@@ -1,3 +1,10 @@
+## [1.2.7](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.6...v1.2.7) (2026-04-23)
+
+
+### Bug Fixes
+
+* harden rate limiting and thread parity ([71e5a87](https://github.com/Microck/discord.py-self-mcp/commit/71e5a871d0228d4beabd748d742ceadde3100cf8))
+
 ## [1.2.6](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.5...v1.2.6) (2026-04-17)
 
 
