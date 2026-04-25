@@ -6,6 +6,7 @@ Commands:
   daemon <start|stop|restart|status>  - Manage daemon process
   send-message --channel ID --content "msg"
   read-messages --channel ID [--limit N] [--after TIME]
+  get-message-attachments --channel ID --message ID [--attachment-index N] [--download --output-dir DIR]
   list-guilds
   list-channels --guild ID
   list-threads --channel ID [--archived]
@@ -28,6 +29,7 @@ Time formats for --after:
   1704067200            - Unix timestamp
 """
 
+import base64
 import json
 import os
 import socket
@@ -35,6 +37,11 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from discord_py_self_mcp.cli_runtime import AUTH_FILE, PID_FILE, SOCKET_PATH
 
@@ -70,8 +77,7 @@ def start_daemon():
     """Auto-start daemon if not running."""
     if not is_daemon_running():
         print("Starting daemon...")
-        script_dir = Path(__file__).parent
-        daemon_script = script_dir / "daemon.py"
+        daemon_script = SCRIPT_DIR / "daemon.py"
         subprocess.Popen(
             [sys.executable, str(daemon_script), "start"],
             stdout=subprocess.DEVNULL,
@@ -168,6 +174,74 @@ def format_messages(messages, reverse=True, use_local_timezone=True):
                 attachment_lines.append(" ".join(details))
             content = f"{content}\n  " + "\n  ".join(attachment_lines)
         print(f"[{created_at}] {author}: {content}")
+
+
+def print_attachment_metadata(attachments):
+    for attachment in attachments:
+        details = [
+            f"[Attachment {attachment.get('index', '?')}] {attachment.get('filename', 'unknown')}"
+        ]
+        if attachment.get("content_type"):
+            details.append(f"type={attachment['content_type']}")
+        if attachment.get("size") is not None:
+            details.append(f"size={attachment['size']}")
+        if attachment.get("width") and attachment.get("height"):
+            details.append(f"dimensions={attachment['width']}x{attachment['height']}")
+        if attachment.get("url"):
+            details.append(f"url={attachment['url']}")
+        print(" ".join(details))
+
+
+def cmd_get_message_attachments(
+    channel_id,
+    message_id,
+    attachment_index=None,
+    download=False,
+    output_dir=None,
+    max_bytes=None,
+):
+    if download and not output_dir:
+        print("Error: --output-dir is required when --download is used")
+        return
+
+    args = {"channel_id": channel_id, "message_id": message_id}
+    if attachment_index is not None:
+        args["attachment_index"] = attachment_index
+    if download:
+        args["download_content"] = True
+    if max_bytes is not None:
+        args["max_bytes"] = max_bytes
+
+    result = send_request({"command": "get_message_attachments", "args": args})
+    if "error" in result:
+        print(f"Error: {result['error']}")
+        return
+
+    attachments = result.get("attachments", [])
+    print(f"Found {len(attachments)} attachment(s) on message {result.get('message_id')}:")
+    print("-" * 60)
+    print_attachment_metadata(attachments)
+
+    skipped = result.get("skipped", [])
+    if skipped:
+        print("\nSkipped downloads:")
+        for item in skipped:
+            print(
+                f"  [Attachment {item.get('index', '?')}] {item.get('filename', 'unknown')}: {item.get('reason', 'Unknown reason')}"
+            )
+
+    downloads = result.get("downloads", [])
+    if not downloads:
+        return
+
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    print(f"\nSaved downloads to {output_path}:")
+    for item in downloads:
+        filename = item.get("filename") or f"attachment-{item.get('index', 'unknown')}"
+        destination = output_path / f"attachment-{item.get('index', 'unknown')}-{filename}"
+        destination.write_bytes(base64.b64decode(item["content_base64"]))
+        print(f"  {destination}")
 
 
 def cmd_send_message(channel_id, content):
@@ -450,8 +524,7 @@ def cmd_create_thread(channel_id, name, message_id, content=None):
 
 
 def cmd_daemon(action):
-    script_dir = Path(__file__).parent
-    daemon_script = script_dir / "daemon.py"
+    daemon_script = SCRIPT_DIR / "daemon.py"
 
     if action == "start":
         if is_daemon_running():
@@ -486,6 +559,16 @@ def main():
     read_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
     read_parser.add_argument("--limit", "-l", type=int, default=10, help="Number of messages")
     read_parser.add_argument("--after", "-a", type=str, help="Only show messages after this time (e.g. '4h', '30m', '2024-01-01T00:00:00')")
+
+    attachments_parser = subparsers.add_parser(
+        "get-message-attachments", help="Show attachment metadata for a message"
+    )
+    attachments_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
+    attachments_parser.add_argument("--message", "-m", required=True, type=int, help="Message ID")
+    attachments_parser.add_argument("--attachment-index", type=int, help="Optional zero-based attachment index")
+    attachments_parser.add_argument("--download", action="store_true", help="Download selected attachments to disk")
+    attachments_parser.add_argument("--output-dir", type=str, help="Directory to write downloads into when --download is used")
+    attachments_parser.add_argument("--max-bytes", type=int, help="Skip downloads larger than this many bytes")
 
     subparsers.add_parser("list-guilds", help="List all guilds")
 
@@ -555,6 +638,15 @@ def main():
         cmd_send_message(args.channel, args.content)
     elif args.command == "read-messages":
         cmd_read_messages(args.channel, args.limit, args.after)
+    elif args.command == "get-message-attachments":
+        cmd_get_message_attachments(
+            args.channel,
+            args.message,
+            args.attachment_index,
+            args.download,
+            args.output_dir,
+            args.max_bytes,
+        )
     elif args.command == "list-guilds":
         cmd_list_guilds()
     elif args.command == "list-channels":

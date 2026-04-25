@@ -377,6 +377,8 @@ python3 scripts/dcli.py daemon status    # check daemon status
 python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "Hello"
 python3 scripts/dcli.py list-guilds
 python3 scripts/dcli.py read-messages --channel CHANNEL_ID --limit 20
+python3 scripts/dcli.py get-message-attachments --channel CHANNEL_ID --message MESSAGE_ID
+python3 scripts/dcli.py get-message-attachments --channel CHANNEL_ID --message MESSAGE_ID --download --output-dir ./attachments
 ```
 
 **when to use skill mode**:

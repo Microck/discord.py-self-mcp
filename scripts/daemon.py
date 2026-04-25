@@ -5,6 +5,7 @@ Auto-restart on code change: Enabled
 """
 
 import asyncio
+import base64
 import hashlib
 import json
 import os
@@ -17,8 +18,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from secrets import compare_digest
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 env_paths = [
-    Path(__file__).parent.parent / ".env",
+    PROJECT_ROOT / ".env",
     Path.cwd() / ".env",
 ]
 
@@ -28,11 +34,6 @@ for env_path in env_paths:
 
         load_dotenv(env_path)
         break
-
-TOKEN = os.getenv("DISCORD_TOKEN")
-if not TOKEN:
-    print("Error: DISCORD_TOKEN not found in .env file")
-    sys.exit(1)
 
 import discord
 
@@ -46,11 +47,11 @@ from discord_py_self_mcp.cli_runtime import (
 )
 from discord_py_self_mcp.logging_utils import log_to_stderr
 from discord_py_self_mcp.tool_utils import NON_MESSAGEABLE_TEXT, validate_message_content
-from discord_py_self_mcp.tools.embed import serialize_message
+from discord_py_self_mcp.tools.embed import serialize_attachment, serialize_message
 
-SCRIPT_DIR = Path(__file__).parent
 DAEMON_SCRIPT = SCRIPT_DIR / "daemon.py"
 CHECK_INTERVAL = 2
+MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
 
 
 def _safe_unlink(path: Path) -> None:
@@ -72,6 +73,15 @@ def _load_or_create_auth_token() -> str:
     AUTH_FILE.write_text(token, encoding="utf-8")
     chmod_private(AUTH_FILE)
     return token
+
+
+def _get_token_or_exit() -> str:
+    token = os.getenv("DISCORD_TOKEN")
+    if token:
+        return token
+
+    print("Error: DISCORD_TOKEN not found in .env file")
+    raise SystemExit(1)
 
 
 class DiscordDaemon:
@@ -163,6 +173,7 @@ class DiscordDaemon:
 
     async def connect(self):
         """Connect to Discord and wait for the initial ready signal."""
+        token = _get_token_or_exit()
 
         @self.client.event
         async def on_ready():
@@ -173,7 +184,7 @@ class DiscordDaemon:
         async def on_disconnect():
             log_to_stderr(f"[{datetime.now()}] Disconnected from Discord")
 
-        asyncio.create_task(self.client.start(TOKEN))
+        asyncio.create_task(self.client.start(token))
         await asyncio.wait_for(self._connected.wait(), timeout=30)
 
     async def handle_command(self, command_data):
@@ -193,6 +204,14 @@ class DiscordDaemon:
             if cmd == "send_message":
                 return await self._send_message(
                     args.get("channel_id"), args.get("content")
+                )
+            if cmd == "get_message_attachments":
+                return await self._get_message_attachments(
+                    args.get("channel_id"),
+                    args.get("message_id"),
+                    args.get("attachment_index"),
+                    args.get("download_content", False),
+                    args.get("max_bytes", MAX_ATTACHMENT_BYTES_DEFAULT),
                 )
             if cmd == "list_threads":
                 return await self._list_threads(
@@ -309,6 +328,87 @@ class DiscordDaemon:
 
         message = await channel.send(content)
         return {"message_id": message.id, "success": True}
+
+    async def _get_message_attachments(
+        self,
+        channel_id,
+        message_id,
+        attachment_index=None,
+        download_content=False,
+        max_bytes=MAX_ATTACHMENT_BYTES_DEFAULT,
+    ):
+        channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
+            channel_id
+        )
+        if not channel:
+            return {"error": "Channel not found"}
+        if not isinstance(channel, discord.abc.Messageable):
+            return {"error": NON_MESSAGEABLE_TEXT}
+
+        try:
+            message = await channel.fetch_message(message_id)
+        except discord.NotFound:
+            return {"error": "Message not found"}
+        except discord.Forbidden:
+            return {"error": "Access denied to message"}
+
+        attachments = list(message.attachments)
+        if not attachments:
+            return {"error": "Message has no attachments"}
+
+        if attachment_index is not None:
+            if attachment_index < 0 or attachment_index >= len(attachments):
+                return {
+                    "error": (
+                        f"Attachment index {attachment_index} is out of range for "
+                        f"{len(attachments)} attachment(s)"
+                    )
+                }
+            indexed_attachments = [(attachment_index, attachments[attachment_index])]
+        else:
+            indexed_attachments = list(enumerate(attachments))
+
+        result = {
+            "message_id": message.id,
+            "attachments": [
+                {"index": index, **serialize_attachment(attachment)}
+                for index, attachment in indexed_attachments
+            ],
+        }
+
+        if not download_content:
+            return result
+
+        max_bytes = int(max_bytes)
+        downloads = []
+        skipped = []
+        for index, attachment in indexed_attachments:
+            if attachment.size is not None and attachment.size > max_bytes:
+                skipped.append(
+                    {
+                        "index": index,
+                        "filename": attachment.filename,
+                        "reason": f"size={attachment.size} exceeds max_bytes={max_bytes}",
+                    }
+                )
+                continue
+
+            blob = await attachment.read()
+            downloads.append(
+                {
+                    "index": index,
+                    "filename": attachment.filename,
+                    "content_type": attachment.content_type
+                    or "application/octet-stream",
+                    "content_base64": base64.b64encode(blob).decode("ascii"),
+                }
+            )
+
+        if downloads:
+            result["downloads"] = downloads
+        if skipped:
+            result["skipped"] = skipped
+        return result
 
     async def _list_threads(self, channel_id, archived=False):
         channel = self.client.get_channel(channel_id) or await self.client.fetch_channel(
