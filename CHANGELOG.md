@@ -1,3 +1,10 @@
+## [1.2.8](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.7...v1.2.8) (2026-04-25)
+
+
+### Bug Fixes
+
+* expose message attachments in daemon cli ([2a5ecfd](https://github.com/Microck/discord.py-self-mcp/commit/2a5ecfd6a0a875c20295d65f99e37a3f8e21e3d8))
+
 ## [1.2.7](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.6...v1.2.7) (2026-04-23)
 
 
