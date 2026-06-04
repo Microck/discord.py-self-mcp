@@ -2,6 +2,7 @@ from .registry import registry as registry
 from . import messages as messages
 from . import guilds as guilds
 from . import channels as channels
+from . import dms as dms
 from . import relationships as relationships
 from . import voice as voice
 from . import presence as presence

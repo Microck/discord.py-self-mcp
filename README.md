@@ -186,6 +186,7 @@ powered by the robust `discord.py-self` library.
 | **system** | 2 | get_user_info, list_guilds |
 | **messages** | 6 | send_message, read_messages, search_messages, edit_message, delete_message, get_message_attachments |
 | **channels** | 3 | create_channel, delete_channel, list_channels |
+| **dms** | 1 | list_dm_channels |
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
@@ -196,6 +197,34 @@ powered by the robust `discord.py-self` library.
 | **profile** | 1 | edit_profile |
 | **reactions** | 2 | add_reaction, remove_reaction |
 | **discrawl** | 7 | run_discrawl, discrawl_doctor, discrawl_status, discrawl_sync, discrawl_search, discrawl_messages, discrawl_mentions |
+
+### direct messages
+
+`list_dm_channels` enumerates your open 1:1 and group DM channels so you can
+discover a `channel_id` instead of needing to know it in advance. Each row is
+`<channel_id> - [dm|group] <recipient display> (id=<user_id>) [BOT]`. Optional
+args: `include_groups` (default `true`) and `name_contains` (case-insensitive
+filter on recipient name/handle), e.g. find the DM with a person by name and
+feed the id straight into `read_messages` / `send_message`.
+
+### slash commands
+
+`send_slash_command` invokes an application command in a channel or DM. Pass
+`application_id` (the bot's user/application ID) for reliable resolution; in a DM
+with a bot it is inferred automatically. The command and any options are
+resolved from the application's registered command list
+(`GET /applications/{id}/commands`), which works for ordinary guild-installed
+bots whose commands the per-channel `/` search index does not return. Subcommands
+are space-separated in `command_name` (e.g. `"config set"`). Example:
+
+```json
+{
+  "channel_id": "123456789012345678",
+  "command_name": "remind",
+  "application_id": "987654321098765432",
+  "options": { "text": "stand up", "when": "in 10 minutes" }
+}
+```
 
 ### discrawl integration
 
@@ -336,6 +365,7 @@ discord_py_self_mcp/
 │   └── solver.py
 └── tools/
     ├── channels.py
+    ├── dms.py
     ├── discrawl.py
     ├── embed.py
     ├── guilds.py
