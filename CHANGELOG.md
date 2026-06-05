@@ -1,3 +1,15 @@
+# [1.3.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.8...v1.3.0) (2026-06-05)
+
+
+### Bug Fixes
+
+* use Microck discrawl-self fork by default ([116728c](https://github.com/Microck/discord.py-self-mcp/commit/116728cb53adeae037d2822efe5d63e57f48da53))
+
+
+### Features
+
+* reliable slash-command resolution + list_dm_channels tool ([20d8ddd](https://github.com/Microck/discord.py-self-mcp/commit/20d8ddddf5d97af752107614695af7380025759b))
+
 ## [1.2.8](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.7...v1.2.8) (2026-04-25)
 
 

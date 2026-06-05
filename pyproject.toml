@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "discord-py-self-mcp"
-  version = "1.2.8"
+  version = "1.3.0"
 authors = [
   { name="Microck", email="your.email@example.com" },
 ]
