@@ -230,7 +230,10 @@ are space-separated in `command_name` (e.g. `"config set"`). Example:
 
 Use `run_discrawl` to execute local `discrawl` commands directly from MCP.
 Use typed tools for common operations (`discrawl_sync`, `discrawl_search`, `discrawl_messages`, etc.) when you want structured params.
-This fork prefers a sibling checkout at `../discrawl-self/bin/discrawl` when present, then falls back to `discrawl` in `PATH`.
+By default this MCP uses the Microck fork at `../discrawl-self/bin/discrawl`:
+`https://github.com/Microck/discrawl-self`. It does not silently fall back to a
+global `discrawl` from `PATH`; set `DISCRAWL_BIN` or the tool `binary` argument
+when you intentionally want another executable.
 
 Example tool call payload:
 
@@ -258,7 +261,7 @@ Typed tool payload example:
 
 Optional env var:
 
-- `DISCRAWL_BIN` - custom path to discrawl executable. This overrides the default fork-first lookup.
+- `DISCRAWL_BIN` - custom path to discrawl executable. This overrides the default Microck fork lookup.
 
 ### attachment access
 

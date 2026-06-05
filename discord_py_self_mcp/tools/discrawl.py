@@ -11,6 +11,7 @@ from .registry import registry
 DEFAULT_TIMEOUT_SECONDS = 180
 MAX_OUTPUT_CHARS = 12000
 DEFAULT_DISCRAWL_BINARY = "discrawl"
+DEFAULT_DISCRAWL_FORK_URL = "https://github.com/Microck/discrawl-self"
 
 
 Response = list[TextContent | ImageContent | EmbeddedResource]
@@ -26,7 +27,6 @@ def _default_discrawl_candidates() -> list[str]:
     workspace_dir = repo_root.parent
     return [
         str(workspace_dir / "discrawl-self" / "bin" / "discrawl"),
-        DEFAULT_DISCRAWL_BINARY,
     ]
 
 
@@ -49,7 +49,7 @@ def _resolve_discrawl_binary(arguments: dict) -> str:
         if _binary_exists(candidate):
             return candidate
 
-    return DEFAULT_DISCRAWL_BINARY
+    return _default_discrawl_candidates()[0]
 
 
 def _truncate_output(value: str) -> str:
@@ -95,7 +95,8 @@ async def _run_discrawl(
         return _text(
             (
                 f"Could not find discrawl binary: {binary}\n"
-                "Build discrawl-self at ../discrawl-self/bin/discrawl or set DISCRAWL_BIN to the executable path."
+                f"Clone and build {DEFAULT_DISCRAWL_FORK_URL} at ../discrawl-self/bin/discrawl "
+                "or set DISCRAWL_BIN to the executable path."
             )
         )
 
@@ -165,7 +166,7 @@ async def _run_discrawl(
             },
             "binary": {
                 "type": "string",
-                "description": "optional discrawl binary path; defaults to DISCRAWL_BIN or discrawl",
+                "description": "optional discrawl binary path; defaults to DISCRAWL_BIN or ../discrawl-self/bin/discrawl",
             },
             "timeout_seconds": {
                 "type": "integer",
