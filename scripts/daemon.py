@@ -46,7 +46,11 @@ from discord_py_self_mcp.cli_runtime import (
     ensure_runtime_dir,
 )
 from discord_py_self_mcp.logging_utils import log_to_stderr
-from discord_py_self_mcp.tool_utils import NON_MESSAGEABLE_TEXT, validate_message_content
+from discord_py_self_mcp.tool_utils import (
+    NON_MESSAGEABLE_TEXT,
+    build_reply_kwargs,
+    validate_message_content,
+)
 from discord_py_self_mcp.tools.embed import serialize_attachment, serialize_message
 
 DAEMON_SCRIPT = SCRIPT_DIR / "daemon.py"
@@ -328,13 +332,7 @@ class DiscordDaemon:
         if not isinstance(channel, discord.abc.Messageable):
             return {"error": NON_MESSAGEABLE_TEXT}
 
-        send_kwargs = {}
-        if reply_to_message_id is not None:
-            send_kwargs["reference"] = discord.MessageReference(
-                message_id=int(reply_to_message_id),
-                channel_id=int(channel_id),
-            )
-
+        send_kwargs = build_reply_kwargs(reply_to_message_id, channel_id)
         message = await channel.send(content, **send_kwargs)
         return {"message_id": message.id, "success": True}
 

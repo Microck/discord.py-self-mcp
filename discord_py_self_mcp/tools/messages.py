@@ -9,6 +9,7 @@ from .embed import build_search_text, format_attachment, format_message_line
 from ..tool_utils import (
     NON_MESSAGEABLE_TEXT,
     apply_rate_limit,
+    build_reply_kwargs,
     normalize_history_limit,
     validate_message_content,
 )
@@ -54,12 +55,7 @@ async def send_message(arguments: dict):
         if not isinstance(channel, discord.abc.Messageable):
             return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
-        send_kwargs = {}
-        if reply_to_message_id is not None:
-            send_kwargs["reference"] = discord.MessageReference(
-                message_id=int(reply_to_message_id),
-                channel_id=channel_id,
-            )
+        send_kwargs = build_reply_kwargs(reply_to_message_id, channel_id)
 
         await apply_rate_limit("message")
         message = await channel.send(content, **send_kwargs)

@@ -141,6 +141,27 @@ async def test_send_message_without_reply_has_no_reference(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_send_message_empty_reply_id_sends_normally(monkeypatch):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        pass
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "hi", "reply_to_message_id": ""}
+    )
+
+    assert fake_channel.sent_content == "hi"
+    assert fake_channel.sent_kwargs.get("reference") is None
+    assert "message_id=999" in result[0].text
+    assert "Error" not in result[0].text
+
+
+@pytest.mark.asyncio
 async def test_send_message_includes_reply_reference(monkeypatch):
     fake_channel = FakeChannel()
     rate_limit_calls = []

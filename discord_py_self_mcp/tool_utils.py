@@ -36,6 +36,23 @@ def validate_message_content(content: str) -> str | None:
     return None
 
 
+def build_reply_kwargs(reply_to_message_id: object, channel_id: object) -> dict:
+    """Build channel.send() kwargs for an optional reply reference.
+
+    Returns an empty dict when no reply target is given (None or empty
+    string), so the message is sent normally. Otherwise returns a
+    ``reference`` pointing at the target message in the given channel.
+    """
+    if not reply_to_message_id:
+        return {}
+    return {
+        "reference": discord.MessageReference(
+            message_id=int(reply_to_message_id),
+            channel_id=int(channel_id),
+        )
+    }
+
+
 def normalize_history_limit(limit: object, *, default: int = DEFAULT_HISTORY_LIMIT) -> int:
     try:
         normalized = int(limit)
