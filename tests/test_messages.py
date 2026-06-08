@@ -40,6 +40,11 @@ class FakeAttachment:
         return self._payload
 
 
+class FakeReference:
+    def __init__(self, message_id):
+        self.message_id = message_id
+
+
 class FakeMessage:
     def __init__(
         self,
@@ -49,6 +54,7 @@ class FakeMessage:
         content="",
         clean_content="",
         attachments=None,
+        reference=None,
     ):
         self.id = message_id
         self.author = author or FakeAuthor()
@@ -56,6 +62,7 @@ class FakeMessage:
         self.clean_content = clean_content
         self.attachments = attachments or []
         self.embeds = []
+        self.reference = reference
         self.created_at = datetime(2026, 4, 17, 19, 0, tzinfo=timezone.utc)
         self.deleted = False
 
@@ -177,6 +184,37 @@ async def test_read_messages_includes_attachment_metadata(monkeypatch):
     assert "[Attachment 0] photo.png" in result[0].text
     assert "url=https://cdn.discordapp.com/photo.png" in result[0].text
     assert rate_limit_calls == ["action"]
+
+
+@pytest.mark.asyncio
+async def test_read_messages_includes_reply_reference_id(monkeypatch):
+    reply_msg = FakeMessage(
+        message_id=222,
+        content="a reply",
+        clean_content="a reply",
+        reference=FakeReference(message_id=111),
+    )
+    plain_msg = FakeMessage(
+        message_id=333, content="not a reply", clean_content="not a reply"
+    )
+    fake_channel = FakeChannel(messages_list=[reply_msg, plain_msg])
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        pass
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.read_messages({"channel_id": "1", "limit": 5})
+    text = result[0].text
+
+    assert "message_id=222" in text
+    assert "reply_to=111" in text
+    # A non-reply message should not gain a reply_to marker
+    assert "message_id=333" in text
+    plain_line = [line for line in text.splitlines() if "message_id=333" in line][0]
+    assert "reply_to=" not in plain_line
 
 
 @pytest.mark.asyncio
