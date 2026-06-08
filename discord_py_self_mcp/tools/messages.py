@@ -24,6 +24,10 @@ MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
         "properties": {
             "channel_id": {"type": "string"},
             "content": {"type": "string"},
+            "reply_to_message_id": {
+                "type": "string",
+                "description": "Optional message ID to reply to in this channel",
+            },
         },
         "required": ["channel_id", "content"],
     },
@@ -32,6 +36,7 @@ async def send_message(arguments: dict):
     try:
         channel_id = int(arguments["channel_id"])
         content = arguments["content"]
+        reply_to_message_id = arguments.get("reply_to_message_id")
         content_error = validate_message_content(content)
         if content_error:
             return [TextContent(type="text", text=content_error)]
@@ -49,8 +54,15 @@ async def send_message(arguments: dict):
         if not isinstance(channel, discord.abc.Messageable):
             return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
+        send_kwargs = {}
+        if reply_to_message_id is not None:
+            send_kwargs["reference"] = discord.MessageReference(
+                message_id=int(reply_to_message_id),
+                channel_id=channel_id,
+            )
+
         await apply_rate_limit("message")
-        message = await channel.send(content)
+        message = await channel.send(content, **send_kwargs)
         return [
             TextContent(
                 type="text",

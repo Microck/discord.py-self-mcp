@@ -82,10 +82,13 @@ class FakeMessageable:
 
 
 class FakeChannel(FakeMessageable):
-    def __init__(self, *, messages_list=None, fetched_message=None):
+    def __init__(self, *, messages_list=None, fetched_message=None, sent_message=None):
         self._messages = messages_list or []
         self._fetched_message = fetched_message
+        self._sent_message = sent_message or FakeMessage(message_id=999)
         self.last_history_limit = None
+        self.sent_content = None
+        self.sent_kwargs = None
 
     def history(self, **kwargs):
         limit = kwargs.get("limit", len(self._messages))
@@ -95,6 +98,11 @@ class FakeChannel(FakeMessageable):
     async def fetch_message(self, message_id):
         return self._fetched_message
 
+    async def send(self, content, **kwargs):
+        self.sent_content = content
+        self.sent_kwargs = kwargs
+        return self._sent_message
+
 
 class FakeClient:
     def __init__(self, channel):
@@ -103,6 +111,50 @@ class FakeClient:
 
     def get_channel(self, channel_id):
         return self._channel
+
+
+@pytest.mark.asyncio
+async def test_send_message_without_reply_has_no_reference(monkeypatch):
+    fake_channel = FakeChannel()
+    rate_limit_calls = []
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        rate_limit_calls.append(action_type)
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message({"channel_id": "1", "content": "hi"})
+
+    assert rate_limit_calls == ["message"]
+    assert fake_channel.sent_content == "hi"
+    assert fake_channel.sent_kwargs.get("reference") is None
+    assert "message_id=999" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_send_message_includes_reply_reference(monkeypatch):
+    fake_channel = FakeChannel()
+    rate_limit_calls = []
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        rate_limit_calls.append(action_type)
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "hi", "reply_to_message_id": "456"}
+    )
+
+    assert rate_limit_calls == ["message"]
+    reference = fake_channel.sent_kwargs.get("reference")
+    assert reference is not None
+    assert reference.message_id == 456
+    assert reference.channel_id == 1
+    assert "message_id=999" in result[0].text
 
 
 @pytest.mark.asyncio
