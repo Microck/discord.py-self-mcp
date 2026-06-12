@@ -77,11 +77,19 @@ def format_message_body(message: discord.Message) -> list[str]:
     return parts
 
 
+def get_reply_to_message_id(message: discord.Message):
+    """Return the id of the message this one replies to, or None."""
+    reference = getattr(message, "reference", None)
+    return getattr(reference, "message_id", None) if reference else None
+
+
 def format_message_line(message: discord.Message) -> str:
     author_name = message.author.name if message.author else "Unknown"
-    return f"{author_name} (message_id={message.id}): " + " ".join(
-        format_message_body(message)
-    )
+    header = f"message_id={message.id}"
+    reply_to_id = get_reply_to_message_id(message)
+    if reply_to_id is not None:
+        header += f", reply_to={reply_to_id}"
+    return f"{author_name} ({header}): " + " ".join(format_message_body(message))
 
 
 def build_search_text(message: discord.Message) -> str:
@@ -122,6 +130,7 @@ def serialize_message(message: discord.Message) -> dict:
         "author": message.author.name if message.author else "Unknown",
         "content": get_message_text(message),
         "created_at": message.created_at.isoformat(),
+        "reply_to": get_reply_to_message_id(message),
         "attachments": [
             serialize_attachment(attachment) for attachment in message.attachments
         ],

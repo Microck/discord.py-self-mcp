@@ -46,7 +46,11 @@ from discord_py_self_mcp.cli_runtime import (
     ensure_runtime_dir,
 )
 from discord_py_self_mcp.logging_utils import log_to_stderr
-from discord_py_self_mcp.tool_utils import NON_MESSAGEABLE_TEXT, validate_message_content
+from discord_py_self_mcp.tool_utils import (
+    NON_MESSAGEABLE_TEXT,
+    build_reply_kwargs,
+    validate_message_content,
+)
 from discord_py_self_mcp.tools.embed import serialize_attachment, serialize_message
 
 DAEMON_SCRIPT = SCRIPT_DIR / "daemon.py"
@@ -203,7 +207,9 @@ class DiscordDaemon:
                 )
             if cmd == "send_message":
                 return await self._send_message(
-                    args.get("channel_id"), args.get("content")
+                    args.get("channel_id"),
+                    args.get("content"),
+                    args.get("reply_to_message_id"),
                 )
             if cmd == "get_message_attachments":
                 return await self._get_message_attachments(
@@ -313,7 +319,7 @@ class DiscordDaemon:
         messages.reverse()
         return {"messages": messages}
 
-    async def _send_message(self, channel_id, content):
+    async def _send_message(self, channel_id, content, reply_to_message_id=None):
         content_error = validate_message_content(content or "")
         if content_error:
             return {"error": content_error}
@@ -326,7 +332,8 @@ class DiscordDaemon:
         if not isinstance(channel, discord.abc.Messageable):
             return {"error": NON_MESSAGEABLE_TEXT}
 
-        message = await channel.send(content)
+        send_kwargs = build_reply_kwargs(reply_to_message_id, channel_id)
+        message = await channel.send(content, **send_kwargs)
         return {"message_id": message.id, "success": True}
 
     async def _get_message_attachments(
