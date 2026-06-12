@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.3.0...v1.4.0) (2026-06-12)
+
+
+### Features
+
+* reply_to_message_id on send_message + reply id in read_messages ([#42](https://github.com/Microck/discord.py-self-mcp/issues/42)) ([c5b768f](https://github.com/Microck/discord.py-self-mcp/commit/c5b768f64844dd4b2efc685d649775ce1832bad6))
+
 # [1.3.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.2.8...v1.3.0) (2026-06-05)
 
 
