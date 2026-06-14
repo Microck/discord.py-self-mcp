@@ -41,7 +41,8 @@ def _resolve_discrawl_binary(arguments: dict) -> str:
             raise ValueError(
                 "binary must be the literal 'discrawl' or an absolute path to a discrawl executable"
             )
-        if expanded.name != "discrawl":
+        # Accept both POSIX "discrawl" and Windows "discrawl.exe".
+        if expanded.stem != "discrawl":
             raise ValueError("binary path must point to a discrawl executable")
         return str(expanded)
 
