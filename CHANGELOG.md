@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/Microck/discord.py-self-mcp/compare/v1.4.0...v1.4.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* accept discrawl.exe on Windows + list_friends Relationship crash ([#43](https://github.com/Microck/discord.py-self-mcp/issues/43)) ([0897565](https://github.com/Microck/discord.py-self-mcp/commit/0897565c81b3c6c26444e8e290b540ccb287bb8d))
+
 # [1.4.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.3.0...v1.4.0) (2026-06-12)
 
 
