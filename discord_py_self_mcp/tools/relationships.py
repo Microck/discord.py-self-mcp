@@ -18,7 +18,14 @@ async def list_friends(arguments: dict):
         if not friends:
              return [TextContent(type="text", text="Your friends list is empty.")]
 
-        friend_list = [f"{format_user_display(f)} ({f.id})" for f in friends]
+        # client.friends returns Relationship objects, not Users. A Relationship
+        # has no .name, so format it via its .user (skipping any relationship
+        # whose user is unavailable).
+        friend_list = [
+            f"{format_user_display(f.user)} ({f.user.id})"
+            for f in friends
+            if f.user is not None
+        ]
         return [TextContent(type="text", text="\n".join(friend_list))]
     except AttributeError:
          return [TextContent(type="text", text="Could not access the friends list. Make sure the Discord account is connected and logged in.")]

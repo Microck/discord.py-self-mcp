@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from discord_py_self_mcp.tools import discrawl
@@ -7,18 +9,37 @@ def test_default_discrawl_candidates_are_fork_only():
     candidates = discrawl._default_discrawl_candidates()
 
     assert len(candidates) == 1
-    assert candidates[0].endswith("discrawl-self/bin/discrawl")
+    assert Path(candidates[0]).parts[-3:] == ("discrawl-self", "bin", "discrawl")
     assert discrawl.DEFAULT_DISCRAWL_BINARY not in candidates
 
 
 def test_default_discrawl_binary_uses_sibling_fork_even_when_missing():
     resolved = discrawl._resolve_discrawl_binary({})
 
-    assert resolved.endswith("discrawl-self/bin/discrawl")
+    assert Path(resolved).parts[-3:] == ("discrawl-self", "bin", "discrawl")
 
 
 def test_explicit_literal_discrawl_is_still_allowed():
     assert discrawl._resolve_discrawl_binary({"binary": "discrawl"}) == "discrawl"
+
+
+def test_explicit_absolute_discrawl_exe_is_accepted(tmp_path):
+    target = tmp_path / "discrawl.exe"
+
+    assert discrawl._resolve_discrawl_binary({"binary": str(target)}) == str(target)
+
+
+def test_explicit_absolute_discrawl_without_extension_is_accepted(tmp_path):
+    target = tmp_path / "discrawl"
+
+    assert discrawl._resolve_discrawl_binary({"binary": str(target)}) == str(target)
+
+
+def test_explicit_absolute_wrong_name_is_rejected(tmp_path):
+    target = tmp_path / "notdiscrawl.exe"
+
+    with pytest.raises(ValueError, match="must point to a discrawl executable"):
+        discrawl._resolve_discrawl_binary({"binary": str(target)})
 
 
 @pytest.mark.asyncio
