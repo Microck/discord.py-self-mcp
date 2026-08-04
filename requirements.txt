@@ -1,5 +1,5 @@
 discord.py-self[voice]==2.0.1
-mcp
+mcp<2
 python-dotenv
 playwright
 hcaptcha-challenger

@@ -13,7 +13,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "discord.py-self[voice]==2.0.1",
-    "mcp",
+    "mcp<2",
     "python-dotenv",
     "playwright",
     "hcaptcha-challenger",
