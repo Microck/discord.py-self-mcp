@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.4.1...v1.5.0) (2026-08-04)
+
+
+### Features
+
+* role and permission management tools ([#45](https://github.com/Microck/discord.py-self-mcp/issues/45)) ([071fb89](https://github.com/Microck/discord.py-self-mcp/commit/071fb89931de70437e8935e93f8c3977224e7d5f)), closes [#5865F2](https://github.com/Microck/discord.py-self-mcp/issues/5865F2)
+
 ## [1.4.1](https://github.com/Microck/discord.py-self-mcp/compare/v1.4.0...v1.4.1) (2026-06-18)
 
 
