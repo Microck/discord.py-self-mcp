@@ -38,7 +38,13 @@ class FakeRole:
         return not self < other
 
     async def edit(self, **kwargs):
+        # discord.Role.edit returns a new instance and leaves this one untouched.
         self.edits.append(kwargs)
+        return FakeRole(
+            role_id=self.id,
+            name=kwargs.get("name", self.name),
+            position=kwargs.get("position", self.position),
+        )
 
     async def delete(self, **kwargs):
         self.deleted = True
@@ -241,6 +247,63 @@ async def test_reorder_roles_falls_back_to_sequential_edits(monkeypatch):
     assert first.edits == [{"position": 4}]
     assert second.edits == [{"position": 3}]
     assert "Reordered 2 role(s)" in result[0].text
+
+
+class FakeGuildBulk(FakeGuild):
+    """Guild that exposes the bulk endpoint, like discord.py-self 2.0.1."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.bulk_calls = []
+
+    async def edit_role_positions(self, positions, reason=None):
+        self.bulk_calls.append((dict(positions), reason))
+        # Mirrors the library: fresh Role objects, originals left stale.
+        return [
+            FakeRole(role_id=role.id, name=role.name, position=position)
+            for role, position in positions.items()
+        ]
+
+
+@pytest.mark.asyncio
+async def test_reorder_roles_reports_positions_from_the_api_not_stale_cache(monkeypatch):
+    first = FakeRole(role_id=10, name="a", position=1)
+    second = FakeRole(role_id=11, name="b", position=2)
+    top = FakeRole(role_id=1, name="admin", position=100)
+    guild = FakeGuildBulk(roles_list=[first, second, top], me=FakeMe(top))
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    result = await roles.reorder_roles(
+        {
+            "guild_id": "1",
+            "positions": [
+                {"role_id": "10", "position": 40},
+                {"role_id": "11", "position": 30},
+            ],
+        }
+    )
+
+    text = result[0].text
+    assert guild.bulk_calls[0][0] == {first: 40, second: 30}
+    # The originals still say 1 and 2; the report must not.
+    assert (first.position, second.position) == (1, 2)
+    assert "a: asked 40, now 40" in text
+    assert "b: asked 30, now 30" in text
+
+
+@pytest.mark.asyncio
+async def test_reorder_roles_reports_positions_after_sequential_fallback(monkeypatch):
+    first = FakeRole(role_id=10, name="a", position=1)
+    top = FakeRole(role_id=1, name="admin", position=100)
+    guild = FakeGuild(roles_list=[first, top], me=FakeMe(top))
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    result = await roles.reorder_roles(
+        {"guild_id": "1", "positions": [{"role_id": "10", "position": 7}]}
+    )
+
+    assert first.position == 1
+    assert "a: asked 7, now 7" in result[0].text
 
 
 @pytest.mark.asyncio

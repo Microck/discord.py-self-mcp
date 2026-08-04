@@ -368,9 +368,17 @@ async def reorder_roles(arguments: dict):
 
         reason = arguments.get("reason")
 
+        # Neither API mutates the Role objects we hold: edit_role_positions builds
+        # replacements and swaps them into the guild cache, and Role.edit returns a
+        # new instance. Reading position off the originals would report pre-move
+        # values, so collect what the API hands back.
+        updated = {}
+
         await apply_rate_limit("action")
         if hasattr(guild, "edit_role_positions"):
-            await guild.edit_role_positions(positions=resolved, reason=reason)
+            returned = await guild.edit_role_positions(positions=resolved, reason=reason)
+            for role in returned or []:
+                updated[role.id] = role
         else:
             # Older discord.py-self builds have no bulk endpoint wrapper. Each edit
             # reindexes the roles around it, so the batch cannot be applied
@@ -380,12 +388,18 @@ async def reorder_roles(arguments: dict):
                 kwargs = {"position": position}
                 if reason:
                     kwargs["reason"] = reason
-                await role.edit(**kwargs)
+                result = await role.edit(**kwargs)
+                if result is not None:
+                    updated[result.id] = result
+
+        def current_position(role):
+            fresh = updated.get(role.id) or guild.get_role(role.id)
+            return fresh.position if fresh is not None else role.position
 
         # Report where the roles actually landed. A batch move reindexes every role
         # in between, so the result routinely differs from what was requested.
         landed = ", ".join(
-            f"{role.name}: asked {position}, now {role.position}"
+            f"{role.name}: asked {position}, now {current_position(role)}"
             for role, position in sorted(resolved.items(), key=lambda kv: -kv[1])
         )
         return [TextContent(type="text", text=f"Reordered {len(resolved)} role(s). {landed}")]
