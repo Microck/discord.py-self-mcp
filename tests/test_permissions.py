@@ -64,8 +64,8 @@ class FakeGuild:
 
 
 class FakeChannel:
-    def __init__(self, name="general", guild=None, overwrites=None, view=True):
-        self.id = 500
+    def __init__(self, name="general", guild=None, overwrites=None, view=True, channel_id=500):
+        self.id = channel_id
         self.name = name
         self.guild = guild
         self.overwrites = overwrites or {}
@@ -334,18 +334,21 @@ async def test_set_category_permissions_forwards_reason(monkeypatch):
 async def test_set_category_permissions_reports_partial_progress(monkeypatch):
     role = FakeRole()
     guild = FakeGuild(roles_list=[role])
-    good = FakeChannel(name="chat", guild=guild)
+    # Same name on purpose: Discord allows duplicate channel names, so the
+    # reconciliation list has to be unambiguous.
+    good = FakeChannel(name="chat", guild=guild, channel_id=111)
+    twin = FakeChannel(name="chat", guild=guild, channel_id=222)
 
     class Exploding(FakeChannel):
         async def set_permissions(self, target, overwrite=..., **kwargs):
             raise RuntimeError("500 Internal Server Error")
 
-    bad = Exploding(name="voice", guild=guild)
+    bad = Exploding(name="voice", guild=guild, channel_id=333)
 
     class FakeCategory(FakeChannel):
         def __init__(self):
-            super().__init__(name="staff", guild=guild)
-            self.channels = [good, bad]
+            super().__init__(name="staff", guild=guild, channel_id=999)
+            self.channels = [good, twin, bad]
 
     category = FakeCategory()
     monkeypatch.setattr(discord, "CategoryChannel", FakeCategory)
@@ -358,7 +361,10 @@ async def test_set_category_permissions_reports_partial_progress(monkeypatch):
     text = result[0].text
     assert "500 Internal Server Error" in text
     assert "the category was already updated" in text
-    assert "chat" in text
+    assert "2 channel(s)" in text
+    # Both survivors are named "chat" -- only the ids tell them apart.
+    assert "chat (111)" in text
+    assert "chat (222)" in text
     assert "still have their previous overwrite" in text
 
 

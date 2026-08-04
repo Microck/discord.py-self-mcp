@@ -366,11 +366,12 @@ async def set_category_permissions(arguments: dict):
             for child in category.channels:
                 await apply_rate_limit("action")
                 await child.set_permissions(target, overwrite=overwrite, **reason_kwargs)
-                synced.append(child.name)
+                synced.append((child.name, child.id))
 
         text = f"Set permissions for {target.name} on category {category.name}"
         if synced:
-            text += f" and synced {len(synced)} channel(s): {', '.join(synced)}"
+            names = ", ".join(name for name, _ in synced)
+            text += f" and synced {len(synced)} channel(s): {names}"
         return [TextContent(type="text", text=text)]
     except Exception as e:
         text = f"Error setting category permissions: {str(e)}"
@@ -380,7 +381,10 @@ async def set_category_permissions(arguments: dict):
                 "were synced before this failed"
             )
             if synced:
-                text += f": {', '.join(synced)}"
+                # Ids, not just names: channel names are not unique within a
+                # category, and this list exists to be reconciled against.
+                done = ", ".join(f"{name} ({cid})" for name, cid in synced)
+                text += f": {done}"
             text += ". The remaining channels still have their previous overwrite."
         else:
             text += " — nothing was changed"
