@@ -307,6 +307,63 @@ async def test_reorder_roles_reports_positions_after_sequential_fallback(monkeyp
 
 
 @pytest.mark.asyncio
+async def test_edit_role_blocks_a_destination_above_own_role(monkeypatch):
+    role = FakeRole(role_id=10, name="mod", position=5)
+    guild = _guild_with(role, my_top_position=20)
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    result = await roles.edit_role({"guild_id": "1", "role_id": "10", "position": 25})
+
+    assert "Position 25 is at or above your highest role" in result[0].text
+    assert role.edits == []
+
+
+@pytest.mark.asyncio
+async def test_reorder_roles_blocks_a_destination_above_own_role(monkeypatch):
+    first = FakeRole(role_id=10, name="a", position=1)
+    top = FakeRole(role_id=1, name="admin", position=20)
+    guild = FakeGuild(roles_list=[first, top], me=FakeMe(top))
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    result = await roles.reorder_roles(
+        {"guild_id": "1", "positions": [{"role_id": "10", "position": 30}]}
+    )
+
+    assert "a: Position 30 is at or above your highest role" in result[0].text
+    assert first.edits == []
+
+
+@pytest.mark.asyncio
+async def test_reorder_roles_names_moves_applied_before_a_failure(monkeypatch):
+    class Exploding(FakeRole):
+        async def edit(self, **kwargs):
+            raise RuntimeError("500 Internal Server Error")
+
+    ok_role = FakeRole(role_id=10, name="a", position=1)
+    bad_role = Exploding(role_id=11, name="b", position=2)
+    top = FakeRole(role_id=1, name="admin", position=100)
+    guild = FakeGuild(roles_list=[ok_role, bad_role, top], me=FakeMe(top))
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    result = await roles.reorder_roles(
+        {
+            "guild_id": "1",
+            "positions": [
+                {"role_id": "10", "position": 40},
+                {"role_id": "11", "position": 30},
+            ],
+        }
+    )
+
+    text = result[0].text
+    assert "500 Internal Server Error" in text
+    # Highest destination goes first, so "a" is applied before "b" blows up.
+    assert "1 role(s) were already moved" in text
+    assert "a (10)" in text
+    assert "The rest were not touched" in text
+
+
+@pytest.mark.asyncio
 async def test_reorder_roles_reports_missing_role(monkeypatch):
     top = FakeRole(role_id=1, name="admin", position=100)
     guild = FakeGuild(roles_list=[top], me=FakeMe(top))

@@ -218,7 +218,15 @@ are exempt.
 `set_channel_permissions` replaces an overwrite wholesale, so any flag you do
 not pass is lost. When an overwrite already exists and you only mean to change
 one flag, use `patch_channel_permissions` — it takes a map of flag to
-true/false/null and leaves everything else in that entry untouched.
+true/false/null and leaves everything else in that entry untouched. Because a
+wholesale write with neither `allow` nor `deny` would quietly wipe the entry,
+both setters require at least one of the two and reject a flag listed in both;
+`remove_channel_permissions` is the way to drop an overwrite on purpose.
+
+Role moves are checked twice before anything is sent: the role must sit below
+your own highest role, and so must the position you are moving it to. Both are
+compared with discord's own role ordering rather than raw position numbers,
+since positions can tie and are broken by id.
 
 For channel access, `set_channel_permissions` writes one overwrite and
 `set_category_permissions` writes the category plus, by default, every channel

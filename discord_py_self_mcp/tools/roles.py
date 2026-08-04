@@ -87,6 +87,32 @@ def _hierarchy_block(guild, role) -> str | None:
     return None
 
 
+def _position_block(guild, position) -> str | None:
+    """Reject a move to a rank the account cannot reach.
+
+    _hierarchy_block only covers where a role is now. Both write paths also take a
+    destination, and Discord answers an out-of-reach destination with the same bare
+    Forbidden this module exists to translate.
+    """
+    me = getattr(guild, "me", None)
+    if me is None:
+        return None
+    if getattr(guild, "owner_id", None) == getattr(me, "id", None):
+        return None
+
+    top_role = getattr(me, "top_role", None)
+    if top_role is None:
+        return None
+
+    if position >= top_role.position:
+        return (
+            f"Position {position} is at or above your highest role '{top_role.name}' "
+            f"(position {top_role.position}). Discord refuses moves to a position "
+            "that is not below your own."
+        )
+    return None
+
+
 @registry.register(
     name="list_roles",
     description=(
@@ -249,6 +275,11 @@ async def edit_role(arguments: dict):
         if blocked:
             return [TextContent(type="text", text=blocked)]
 
+        if arguments.get("position") is not None:
+            blocked = _position_block(guild, int(arguments["position"]))
+            if blocked:
+                return [TextContent(type="text", text=blocked)]
+
         kwargs = {}
         for field in ("name", "position", "hoist", "mentionable"):
             if arguments.get(field) is not None:
@@ -345,6 +376,9 @@ async def delete_role(arguments: dict):
     }
 )
 async def reorder_roles(arguments: dict):
+    # Tracked outside the try: the sequential fallback commits one role at a time,
+    # so a failure part-way leaves earlier moves applied.
+    applied = []
     try:
         guild = client.get_guild(int(arguments["guild_id"]))
         if not guild:
@@ -364,7 +398,14 @@ async def reorder_roles(arguments: dict):
             if blocked:
                 return [TextContent(type="text", text=blocked)]
 
-            resolved[role] = int(entry["position"])
+            position = int(entry["position"])
+            # Validate every destination before sending anything, so a rejected move
+            # cannot abort the sequential fallback half way through the batch.
+            blocked = _position_block(guild, position)
+            if blocked:
+                return [TextContent(type="text", text=f"{role.name}: {blocked}")]
+
+            resolved[role] = position
 
         reason = arguments.get("reason")
 
@@ -389,6 +430,7 @@ async def reorder_roles(arguments: dict):
                 if reason:
                     kwargs["reason"] = reason
                 result = await role.edit(**kwargs)
+                applied.append(f"{role.name} ({role.id})")
                 if result is not None:
                     updated[result.id] = result
 
@@ -404,4 +446,12 @@ async def reorder_roles(arguments: dict):
         )
         return [TextContent(type="text", text=f"Reordered {len(resolved)} role(s). {landed}")]
     except Exception as e:
-        return [TextContent(type="text", text=f"Error reordering roles: {str(e)}")]
+        text = f"Error reordering roles: {str(e)}"
+        if applied:
+            # Ids as well as names: role names are not unique either, and this list
+            # exists to be reconciled against.
+            text += (
+                f" — {len(applied)} role(s) were already moved before this failed: "
+                f"{', '.join(applied)}. The rest were not touched."
+            )
+        return [TextContent(type="text", text=text)]

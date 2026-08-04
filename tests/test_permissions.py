@@ -210,6 +210,80 @@ async def test_patch_channel_permissions_requires_changes(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_set_channel_permissions_refuses_to_silently_clear(monkeypatch):
+    role = FakeRole()
+    channel = FakeChannel(guild=FakeGuild(roles_list=[role]))
+    monkeypatch.setattr(permissions, "client", FakeClient(channel=channel))
+
+    result = await permissions.set_channel_permissions(
+        {"channel_id": "500", "target_id": "10", "target_type": "role"}
+    )
+
+    assert "would clear the existing entry" in result[0].text
+    assert channel.calls == []
+
+
+@pytest.mark.asyncio
+async def test_set_channel_permissions_rejects_flag_on_both_sides(monkeypatch):
+    role = FakeRole()
+    channel = FakeChannel(guild=FakeGuild(roles_list=[role]))
+    monkeypatch.setattr(permissions, "client", FakeClient(channel=channel))
+
+    result = await permissions.set_channel_permissions(
+        {
+            "channel_id": "500",
+            "target_id": "10",
+            "target_type": "role",
+            "allow": ["send_messages"],
+            "deny": ["send_messages"],
+        }
+    )
+
+    assert "in both allow and deny: send_messages" in result[0].text
+    assert channel.calls == []
+
+
+@pytest.mark.asyncio
+async def test_set_channel_permissions_accepts_a_member_target(monkeypatch):
+    member = FakeRole(role_id=77, name="someone")
+    guild = FakeGuild(members={77: member})
+    channel = FakeChannel(guild=guild)
+    monkeypatch.setattr(permissions, "client", FakeClient(channel=channel))
+
+    result = await permissions.set_channel_permissions(
+        {
+            "channel_id": "500",
+            "target_id": "77",
+            "target_type": "member",
+            "deny": ["send_messages"],
+        }
+    )
+
+    target, overwrite = channel.calls[0]
+    assert target is member
+    assert overwrite.send_messages is False
+    assert "Set permissions for someone" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_get_channel_permissions_survives_an_uncached_target(monkeypatch):
+    # discord.py substitutes a bare Object when the role or member is not cached.
+    ghost = discord.Object(id=4242)
+    overwrite = discord.PermissionOverwrite()
+    overwrite.send_messages = False
+    channel = FakeChannel(guild=FakeGuild(), overwrites={ghost: overwrite})
+    monkeypatch.setattr(permissions, "client", FakeClient(channel=channel))
+
+    result = await permissions.get_channel_permissions({"channel_id": "500"})
+    payload = json.loads(result[0].text)
+
+    assert payload[0]["target_id"] == "4242"
+    assert payload[0]["target_type"] == "unresolved"
+    assert payload[0]["target_name"] is None
+    assert payload[0]["denied"] == ["send_messages"]
+
+
+@pytest.mark.asyncio
 async def test_remove_channel_permissions_clears_overwrite(monkeypatch):
     role = FakeRole()
     channel = FakeChannel(guild=FakeGuild(roles_list=[role]))
@@ -268,6 +342,29 @@ async def test_inspect_effective_permissions_splits_channels(monkeypatch):
     assert payload["accessible_channels"] == ["visible"]
     assert payload["hidden_channels"] == ["hidden"]
     assert payload["accessible_channel_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_inspect_effective_permissions_accepts_a_member_target(monkeypatch):
+    class FakeMember:
+        id = 77
+        name = "someone"
+        guild_permissions = discord.Permissions(discord.Permissions.all().value)
+
+    member = FakeMember()
+    visible = FakeChannel(name="visible", view=True)
+    guild = FakeGuild(members={77: member}, channels=[visible])
+    monkeypatch.setattr(permissions, "client", FakeClient(guild=guild))
+
+    result = await permissions.inspect_effective_permissions(
+        {"guild_id": "1", "target_id": "77", "target_type": "member"}
+    )
+    payload = json.loads(result[0].text)
+
+    assert payload["target_name"] == "someone"
+    assert payload["target_type"] == "member"
+    assert payload["is_administrator"] is True
+    assert payload["accessible_channels"] == ["visible"]
 
 
 @pytest.mark.asyncio
@@ -388,6 +485,7 @@ async def test_set_category_permissions_can_skip_children(monkeypatch):
             "category_id": "1",
             "target_id": "10",
             "target_type": "role",
+            "deny": ["view_channel"],
             "sync_children": False,
         }
     )

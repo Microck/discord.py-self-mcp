@@ -26,21 +26,51 @@ def _resolve_target(guild, target_id: str, target_type: str):
 def _build_overwrite(arguments: dict):
     allow = _parse_permissions(arguments.get("allow"))
     deny = _parse_permissions(arguments.get("deny"))
-    return discord.PermissionOverwrite.from_pair(
-        allow if allow is not None else discord.Permissions.none(),
-        deny if deny is not None else discord.Permissions.none(),
-    )
+
+    if allow is None and deny is None:
+        # An all-neutral overwrite is written as allow=0/deny=0, which wipes whatever
+        # the entry held. Silently destroying an overwrite is not a plausible reading
+        # of "set permissions", and remove_channel_permissions already does it on
+        # purpose.
+        raise ValueError(
+            "Pass allow and/or deny. An overwrite with neither would clear the "
+            "existing entry — use remove_channel_permissions if that is the intent."
+        )
+
+    allow = allow if allow is not None else discord.Permissions.none()
+    deny = deny if deny is not None else discord.Permissions.none()
+
+    # from_pair applies deny second, so a flag in both would be denied without a word.
+    conflicting = sorted(name for name, value in allow if value and getattr(deny, name))
+    if conflicting:
+        raise ValueError(
+            f"These flags are in both allow and deny: {', '.join(conflicting)}. "
+            "Pick one side per flag."
+        )
+
+    return discord.PermissionOverwrite.from_pair(allow, deny)
 
 
 def _overwrite_rows(channel) -> list[dict]:
     rows = []
     for target, overwrite in channel.overwrites.items():
         allow, deny = overwrite.pair()
+
+        # When the role or member is missing from cache, discord.py puts a bare
+        # Object here — it carries an id and nothing else, so asking for .name
+        # would blow up the whole listing.
+        if isinstance(target, discord.Role):
+            target_type = "role"
+        elif isinstance(target, discord.Object):
+            target_type = "unresolved"
+        else:
+            target_type = "member"
+
         rows.append(
             {
                 "target_id": str(target.id),
-                "target_type": "role" if isinstance(target, discord.Role) else "member",
-                "target_name": target.name,
+                "target_type": target_type,
+                "target_name": getattr(target, "name", None),
                 "allow": str(allow.value),
                 "deny": str(deny.value),
                 "allowed": sorted(name for name, value in allow if value),
@@ -131,7 +161,10 @@ async def get_channel_permissions(arguments: dict):
     name="set_channel_permissions",
     description=(
         "Set the permission overwrite for a role or member on one channel. "
-        "allow/deny take a bitfield string or a list of flag names."
+        "allow/deny take a bitfield string or a list of flag names. At least one of "
+        "the two is required, and a flag may not appear in both. To drop an overwrite "
+        "entirely use remove_channel_permissions; to change one flag and keep the "
+        "rest use patch_channel_permissions."
     ),
     input_schema={
         "type": "object",
@@ -312,7 +345,8 @@ async def remove_channel_permissions(arguments: dict):
     description=(
         "Set a permission overwrite on a category. By default the same overwrite is "
         "pushed to every channel inside it — set sync_children to false to touch only "
-        "the category."
+        "the category. At least one of allow/deny is required, and a flag may not "
+        "appear in both."
     ),
     input_schema={
         "type": "object",
