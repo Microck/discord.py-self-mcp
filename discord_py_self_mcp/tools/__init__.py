@@ -10,6 +10,8 @@ from . import interactions as interactions
 from . import threads as threads
 from . import reactions as reactions
 from . import members as members
+from . import roles as roles
+from . import permissions as permissions
 from . import invites as invites
 from . import profile as profile
 from . import discrawl as discrawl

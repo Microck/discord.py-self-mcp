@@ -190,10 +190,53 @@ powered by the robust `discord.py-self` library.
 | **interactions** | 3 | send_slash_command, click_button, select_menu |
 | **threads** | 5 | create_thread, send_thread_message, list_active_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
+| **roles** | 6 | list_roles, get_role, create_role, edit_role, delete_role, reorder_roles |
+| **permissions** | 7 | set_role_permissions, get_channel_permissions, set_channel_permissions, patch_channel_permissions, remove_channel_permissions, set_category_permissions, inspect_effective_permissions |
 | **invites** | 3 | create_invite, list_invites, delete_invite |
 | **profile** | 1 | edit_profile |
 | **reactions** | 2 | add_reaction, remove_reaction |
 | **discrawl** | 7 | run_discrawl, discrawl_doctor, discrawl_status, discrawl_sync, discrawl_search, discrawl_messages, discrawl_mentions |
+
+### roles and permissions
+
+`list_roles` returns every role as JSON (id, name, color, position, permission
+bitfield) sorted highest-first. Run it before any restructuring — `position` is
+guild-wide, so moving one role reindexes the others and the dump is your only
+way back.
+
+`create_role` and `edit_role` take `color` as a hex string (`#5865F2`) or an
+integer, and `permissions` as either a raw bitfield string or a list of flag
+names (`["manage_roles", "kick_members"]`). `edit_role` only touches the fields
+you pass. `reorder_roles` moves several roles in one call and falls back to
+sequential edits when the bulk endpoint is unavailable.
+
+Role edits are bounded by hierarchy: your account cannot change a role at or
+above your own highest role. Discord answers that with a bare 403, so these
+tools check position locally first and say which role is blocking. Guild owners
+are exempt.
+
+`set_channel_permissions` replaces an overwrite wholesale, so any flag you do
+not pass is lost. When an overwrite already exists and you only mean to change
+one flag, use `patch_channel_permissions` — it takes a map of flag to
+true/false/null and leaves everything else in that entry untouched. Because a
+wholesale write with neither `allow` nor `deny` would quietly wipe the entry,
+both setters require at least one of the two and reject a flag listed in both;
+`remove_channel_permissions` is the way to drop an overwrite on purpose.
+
+Role moves are checked twice before anything is sent: the role must sit below
+your own highest role, and so must the position you are moving it to. Both are
+compared with discord's own role ordering rather than raw position numbers,
+since positions can tie and are broken by id.
+
+For channel access, `set_channel_permissions` writes one overwrite and
+`set_category_permissions` writes the category plus, by default, every channel
+inside it (`sync_children: false` to skip). `inspect_effective_permissions`
+resolves a role or member against every channel and reports what they can
+actually see — useful for checking a change landed the way you meant.
+
+Flag names are accepted in either spelling on input, but the `allowed` /
+`denied` lists in JSON output use discord.py-self's canonical names — so
+`view_channel` comes back as `read_messages`.
 
 ### direct messages
 
@@ -373,11 +416,13 @@ discord_py_self_mcp/
     ├── invites.py
     ├── members.py
     ├── messages.py
+    ├── permissions.py
     ├── presence.py
     ├── profile.py
     ├── reactions.py
     ├── registry.py
     ├── relationships.py
+    ├── roles.py
     ├── threads.py
     └── voice.py
 ```
