@@ -75,7 +75,10 @@ def _hierarchy_block(guild, role) -> str | None:
     if top_role is None:
         return None
 
-    if role.position >= top_role.position:
+    # Compare the roles themselves, not their positions: Discord allows two roles
+    # to share a position and breaks the tie by id, and @everyone is always lowest.
+    # Role.__lt__ already encodes both rules.
+    if role >= top_role:
         return (
             f"Role '{role.name}' (position {role.position}) is at or above your highest "
             f"role '{top_role.name}' (position {top_role.position}). Discord refuses "
@@ -369,11 +372,22 @@ async def reorder_roles(arguments: dict):
         if hasattr(guild, "edit_role_positions"):
             await guild.edit_role_positions(positions=resolved, reason=reason)
         else:
-            # Older discord.py-self builds have no bulk endpoint wrapper.
-            for role, position in resolved.items():
-                await role.edit(position=position)
+            # Older discord.py-self builds have no bulk endpoint wrapper. Each edit
+            # reindexes the roles around it, so the batch cannot be applied
+            # atomically; going top-down keeps it deterministic, and the caller is
+            # told to read the resulting positions rather than assume them.
+            for role, position in sorted(resolved.items(), key=lambda kv: -kv[1]):
+                kwargs = {"position": position}
+                if reason:
+                    kwargs["reason"] = reason
+                await role.edit(**kwargs)
 
-        moved = ", ".join(f"{role.name}->{position}" for role, position in resolved.items())
-        return [TextContent(type="text", text=f"Reordered {len(resolved)} role(s): {moved}")]
+        # Report where the roles actually landed. A batch move reindexes every role
+        # in between, so the result routinely differs from what was requested.
+        landed = ", ".join(
+            f"{role.name}: asked {position}, now {role.position}"
+            for role, position in sorted(resolved.items(), key=lambda kv: -kv[1])
+        )
+        return [TextContent(type="text", text=f"Reordered {len(resolved)} role(s). {landed}")]
     except Exception as e:
         return [TextContent(type="text", text=f"Error reordering roles: {str(e)}")]

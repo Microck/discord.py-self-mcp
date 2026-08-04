@@ -339,6 +339,10 @@ async def remove_channel_permissions(arguments: dict):
     }
 )
 async def set_category_permissions(arguments: dict):
+    # Tracked outside the try: a failure part-way through the children still leaves
+    # everything before it changed, and the caller needs to know how far it got.
+    category_done = False
+    synced = []
     try:
         category = client.get_channel(int(arguments["category_id"]))
         if not category or not isinstance(category, discord.CategoryChannel):
@@ -351,15 +355,17 @@ async def set_category_permissions(arguments: dict):
             return [TextContent(type="text", text=error)]
 
         overwrite = _build_overwrite(arguments)
+        reason = arguments.get("reason")
+        reason_kwargs = {"reason": reason} if reason else {}
 
         await apply_rate_limit("action")
-        await category.set_permissions(target, overwrite=overwrite)
+        await category.set_permissions(target, overwrite=overwrite, **reason_kwargs)
+        category_done = True
 
-        synced = []
         if arguments.get("sync_children", True):
             for child in category.channels:
                 await apply_rate_limit("action")
-                await child.set_permissions(target, overwrite=overwrite)
+                await child.set_permissions(target, overwrite=overwrite, **reason_kwargs)
                 synced.append(child.name)
 
         text = f"Set permissions for {target.name} on category {category.name}"
@@ -367,7 +373,18 @@ async def set_category_permissions(arguments: dict):
             text += f" and synced {len(synced)} channel(s): {', '.join(synced)}"
         return [TextContent(type="text", text=text)]
     except Exception as e:
-        return [TextContent(type="text", text=f"Error setting category permissions: {str(e)}")]
+        text = f"Error setting category permissions: {str(e)}"
+        if category_done:
+            text += (
+                f" — the category was already updated and {len(synced)} channel(s) "
+                "were synced before this failed"
+            )
+            if synced:
+                text += f": {', '.join(synced)}"
+            text += ". The remaining channels still have their previous overwrite."
+        else:
+            text += " — nothing was changed"
+        return [TextContent(type="text", text=text)]
 
 
 @registry.register(

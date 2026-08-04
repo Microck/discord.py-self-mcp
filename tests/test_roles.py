@@ -27,6 +27,16 @@ class FakeRole:
         self.edits = []
         self.deleted = False
 
+    # Mirrors discord.Role ordering: equal positions are broken by id, and the
+    # role with the higher id sorts lower.
+    def __lt__(self, other):
+        if self.position == other.position:
+            return self.id > other.id
+        return self.position < other.position
+
+    def __ge__(self, other):
+        return not self < other
+
     async def edit(self, **kwargs):
         self.edits.append(kwargs)
 
@@ -154,6 +164,33 @@ async def test_edit_role_blocks_role_above_own(monkeypatch):
     monkeypatch.setattr(roles, "client", FakeClient(_guild_with(role, my_top_position=20)))
 
     result = await roles.edit_role({"guild_id": "1", "role_id": "10", "name": "nope"})
+
+    assert "at or above your highest role" in result[0].text
+    assert role.edits == []
+
+
+@pytest.mark.asyncio
+async def test_edit_role_allows_tie_broken_below_by_id(monkeypatch):
+    # Same position as our top role, but a higher id, which Discord orders lower.
+    top = FakeRole(role_id=1, name="admin", position=20)
+    role = FakeRole(role_id=99, name="tied-below", position=20)
+    guild = FakeGuild(roles_list=[role, top], me=FakeMe(top))
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    await roles.edit_role({"guild_id": "1", "role_id": "99", "name": "renamed"})
+
+    assert role.edits == [{"name": "renamed"}]
+
+
+@pytest.mark.asyncio
+async def test_edit_role_blocks_tie_broken_above_by_id(monkeypatch):
+    # Same position, lower id, which Discord orders above us.
+    top = FakeRole(role_id=99, name="mine", position=20)
+    role = FakeRole(role_id=1, name="tied-above", position=20)
+    guild = FakeGuild(roles_list=[role, top], me=FakeMe(top))
+    monkeypatch.setattr(roles, "client", FakeClient(guild))
+
+    result = await roles.edit_role({"guild_id": "1", "role_id": "1", "name": "nope"})
 
     assert "at or above your highest role" in result[0].text
     assert role.edits == []

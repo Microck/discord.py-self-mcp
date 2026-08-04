@@ -26,6 +26,15 @@ class FakeRole:
         self.permissions = discord.Permissions(0)
         self.edits = []
 
+    # Mirrors discord.Role ordering: equal positions are broken by id.
+    def __lt__(self, other):
+        if self.position == other.position:
+            return self.id > other.id
+        return self.position < other.position
+
+    def __ge__(self, other):
+        return not self < other
+
     async def edit(self, **kwargs):
         self.edits.append(kwargs)
 
@@ -61,10 +70,12 @@ class FakeChannel:
         self.guild = guild
         self.overwrites = overwrites or {}
         self.calls = []
+        self.call_kwargs = []
         self._view = view
 
     async def set_permissions(self, target, overwrite=..., **kwargs):
         self.calls.append((target, overwrite))
+        self.call_kwargs.append(kwargs)
 
     def permissions_for(self, target):
         return discord.Permissions(discord.Permissions.all().value if self._view else 0)
@@ -288,6 +299,67 @@ async def test_set_category_permissions_syncs_children(monkeypatch):
     assert child_a.calls[0][0] is role
     assert child_b.calls[0][0] is role
     assert "synced 2 channel(s): chat, voice" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_set_category_permissions_forwards_reason(monkeypatch):
+    role = FakeRole()
+    guild = FakeGuild(roles_list=[role])
+    child = FakeChannel(name="chat", guild=guild)
+
+    class FakeCategory(FakeChannel):
+        def __init__(self):
+            super().__init__(name="staff", guild=guild)
+            self.channels = [child]
+
+    category = FakeCategory()
+    monkeypatch.setattr(discord, "CategoryChannel", FakeCategory)
+    monkeypatch.setattr(permissions, "client", FakeClient(channel=category))
+
+    await permissions.set_category_permissions(
+        {
+            "category_id": "1",
+            "target_id": "10",
+            "target_type": "role",
+            "deny": ["view_channel"],
+            "reason": "tidying up",
+        }
+    )
+
+    assert category.call_kwargs[0]["reason"] == "tidying up"
+    assert child.call_kwargs[0]["reason"] == "tidying up"
+
+
+@pytest.mark.asyncio
+async def test_set_category_permissions_reports_partial_progress(monkeypatch):
+    role = FakeRole()
+    guild = FakeGuild(roles_list=[role])
+    good = FakeChannel(name="chat", guild=guild)
+
+    class Exploding(FakeChannel):
+        async def set_permissions(self, target, overwrite=..., **kwargs):
+            raise RuntimeError("500 Internal Server Error")
+
+    bad = Exploding(name="voice", guild=guild)
+
+    class FakeCategory(FakeChannel):
+        def __init__(self):
+            super().__init__(name="staff", guild=guild)
+            self.channels = [good, bad]
+
+    category = FakeCategory()
+    monkeypatch.setattr(discord, "CategoryChannel", FakeCategory)
+    monkeypatch.setattr(permissions, "client", FakeClient(channel=category))
+
+    result = await permissions.set_category_permissions(
+        {"category_id": "1", "target_id": "10", "target_type": "role", "deny": ["view_channel"]}
+    )
+
+    text = result[0].text
+    assert "500 Internal Server Error" in text
+    assert "the category was already updated" in text
+    assert "chat" in text
+    assert "still have their previous overwrite" in text
 
 
 @pytest.mark.asyncio
