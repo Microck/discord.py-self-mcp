@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/Microck/discord.py-self-mcp/compare/v1.5.0...v1.5.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* pin mcp<2 so the server starts on a fresh install ([#44](https://github.com/Microck/discord.py-self-mcp/issues/44)) ([6bb124d](https://github.com/Microck/discord.py-self-mcp/commit/6bb124dc026b82e6f5f177fcb4d5d55d6ffe2780))
+
 # [1.5.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.4.1...v1.5.0) (2026-08-04)
 
 
