@@ -187,7 +187,7 @@ powered by the robust `discord.py-self` library.
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
-| **interactions** | 3 | send_slash_command, click_button, select_menu |
+| **interactions** | 4 | send_slash_command, click_button, select_menu, submit_modal |
 | **threads** | 5 | create_thread, send_thread_message, list_active_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
 | **roles** | 6 | list_roles, get_role, create_role, edit_role, delete_role, reorder_roles |
@@ -266,6 +266,24 @@ are space-separated in `command_name` (e.g. `"config set"`). Example:
 }
 ```
 
+### modals
+
+when a button or slash command opens a modal, `click_button` reports the
+modal's `custom_id` and its fields instead of a bare "Button clicked". feed
+those into `submit_modal`:
+
+```json
+{
+  "custom_id": "auth_profile:ABC123",
+  "values": { "profile_username": "your_username" }
+}
+```
+
+pending modals are held for the session (up to 16 at a time) and are consumed
+on submit. a modal is kept if the submit is rejected, so you can fix the values
+and retry without clicking the button again. discord expires the underlying
+interaction after roughly 15 minutes; if that happens, click the button again.
+
 ### discrawl integration
 
 Use `run_discrawl` to execute local `discrawl` commands directly from MCP.
@@ -328,6 +346,7 @@ It returns attachment metadata for the target message and can stream image/file 
 | **slash commands** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **click buttons** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **select menus** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **submit modals** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **kick/ban** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **invites** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **profile edit** | ✅ | ✅ | ❌ | ❌ | ❌ |
