@@ -421,7 +421,20 @@ async def click_button(arguments: dict):
                                     type="text", text=f"Button is a URL: {result}"
                                 )
                             ]
-                        modal = await waiter
+                        if click_error is not None:
+                            # Modal-opening buttons answer with
+                            # INTERACTION_MODAL_CREATE, which the library's
+                            # ack matching rejects, so click() raises even
+                            # though the modal arrives. That exception is the
+                            # only advance signal a modal may be coming, so
+                            # the full window is spent only here.
+                            modal = await waiter
+                        else:
+                            # A cleanly acked click received a normal
+                            # interaction response, so no modal follows it.
+                            # Ordinary buttons must not pay the modal window.
+                            waiter.cancel()
+                            modal = None
                         if modal is not None:
                             return [
                                 TextContent(
@@ -827,6 +840,22 @@ async def submit_modal(arguments: dict):
             for field_id, field in fields.items()
             if getattr(field, "required", False) and not values.get(field_id)
         )
+        if unknown:
+            # Reject before submitting: an unknown key almost always means a
+            # mistyped field id, and submitting would leave that field empty
+            # irreversibly. Same restoration path as missing-required below.
+            modal_store.put(modal)
+            valid = ", ".join(sorted(fields)) or "none"
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        "Unknown field(s): "
+                        f"{', '.join(unknown)}. Modal was not submitted. "
+                        f"Valid fields: {valid}"
+                    ),
+                )
+            ]
         if missing:
             # Put it back so the caller can retry without re-clicking.
             modal_store.put(modal)
@@ -856,16 +885,18 @@ async def submit_modal(arguments: dict):
                         )
                     ]
 
-        await apply_rate_limit("action")
+        # A rate-limit failure here happens before anything is sent, so the
+        # modal goes back and the caller can retry. Past this point the entry
+        # stays consumed: once the answers have been handed to Discord, a
+        # second attempt could submit the interaction twice.
+        try:
+            await apply_rate_limit("action")
+        except Exception:
+            modal_store.put(modal)
+            raise
         await modal.submit()
 
         msg = f"Modal {custom_id!r} submitted"
-        if unknown:
-            valid = ", ".join(sorted(fields)) or "none"
-            msg += (
-                f". Ignored unknown field(s) {', '.join(unknown)}; "
-                f"valid fields: {valid}"
-            )
         return [TextContent(type="text", text=msg)]
 
     except Exception as e:

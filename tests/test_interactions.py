@@ -391,6 +391,22 @@ class FakeModalClient:
         return self._modal
 
 
+class BlockingModalClient(FakeModalClient):
+    """wait_for that hangs like a real gateway listen, recording cancellation."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.waiter_cancelled = False
+
+    async def wait_for(self, event, timeout=None):
+        assert event == "modal"
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            self.waiter_cancelled = True
+            raise
+
+
 class NotFoundChannel(FakeMessageChannel):
     """Channel whose REST fetch 404s, like an ephemeral message."""
 
@@ -419,7 +435,46 @@ async def test_click_button_without_modal_keeps_legacy_message(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_click_button_without_modal_does_not_wait_for_it(monkeypatch):
+    """A cleanly acked click cannot be followed by a modal, so the modal
+    window must not run: ordinary clicks return promptly."""
+
+    class InstantButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            await asyncio.sleep(0.05)
+            return None
+
+    button = InstantButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    client_stub = BlockingModalClient(channel=channel)
+    monkeypatch.setattr(interactions, "client", client_stub)
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert result[0].text == "Button clicked"
+    # Task.cancel() is asynchronous: give the loop a tick so the sleeping
+    # waiter actually observes the cancellation before we assert on it.
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert client_stub.waiter_cancelled
+
+
+@pytest.mark.asyncio
 async def test_click_button_reports_modal_fields(monkeypatch):
+    """A real modal button always raises from click(): the INTERACTION_MODAL_CREATE
+    answer is rejected as an ack (components.py documents InvalidData as 'doesn't
+    mean the interaction failed'), so a faithful fake raises too."""
+
+    class ModalButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            raise discord.InvalidData(
+                "Did not receive a response from Discord"
+            )
+
     modal = FakeModal(
         custom_id="auth_profile:ABC",
         components=[FakeActionRow(
@@ -427,7 +482,7 @@ async def test_click_button_reports_modal_fields(monkeypatch):
                           required=True, min_length=3, max_length=20)
         )],
     )
-    button = FakeButton("auth_panel")
+    button = ModalButton("auth_panel")
     channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
     monkeypatch.setattr(
         interactions, "client", FakeModalClient(channel=channel, modal=modal)
@@ -834,7 +889,7 @@ async def test_submit_modal_missing_required_field_keeps_the_modal():
 @pytest.mark.asyncio
 async def test_submit_modal_reports_unknown_keys():
     field = FakeTextInput("profile_username", required=True)
-    _stash(FakeModal(components=[FakeActionRow(field)]))
+    modal = _stash(FakeModal(components=[FakeActionRow(field)]))
 
     result = await interactions.submit_modal(
         {"custom_id": "auth_profile:ABC",
@@ -842,7 +897,57 @@ async def test_submit_modal_reports_unknown_keys():
     )
 
     assert "typo_field" in result[0].text
-    assert field.value == "ok"
+    assert not modal.submitted
+    # Values are rejected wholesale: nothing is applied, so the caller can
+    # resubmit the corrected set against the restored modal.
+    assert field.value is None
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_rejects_before_submitting_on_unknown_keys():
+    """An unknown key means a mistyped field id; submitting would leave the
+    real field empty irreversibly. The modal must be rejected pre-submit and
+    put back so the values can be corrected."""
+
+    class GuardedModal(FakeModal):
+        async def submit(self):
+            raise AssertionError("submit must not run for unknown fields")
+
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(GuardedModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC",
+         "values": {"profile_username": "ok", "typo_field": "x"}}
+    )
+
+    text = result[0].text
+    assert "typo_field" in text
+    assert "was not submitted" in text
+    # Restoration path identical to the missing-required rejection.
+    assert modal_store.take("auth_profile:ABC") is modal
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_rate_limit_failure_keeps_the_modal(monkeypatch):
+    """A pre-submit failure restores the entry so a transient error can be
+    retried without clicking the button again."""
+
+    async def blocked(action_type):
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(interactions, "apply_rate_limit", blocked)
+    modal = _stash(FakeModal(components=[
+        FakeActionRow(FakeTextInput("profile_username", required=False))
+    ]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+
+    assert "rate limited" in result[0].text
+    assert not modal.submitted
+    assert modal_store.take("auth_profile:ABC") is modal
 
 
 @pytest.mark.asyncio

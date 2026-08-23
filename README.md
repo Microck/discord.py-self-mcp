@@ -304,9 +304,13 @@ those into `submit_modal`:
 ```
 
 pending modals are held for the session (up to 16 at a time) and are consumed
-on submit. a modal is kept if the submit is rejected, so you can fix the values
-and retry without clicking the button again. discord expires the underlying
-interaction after roughly 15 minutes; if that happens, click the button again.
+on submit. a modal is put back when the submit is rejected — unknown field
+ids, missing required fields, or a failed send before anything reached
+discord — so you can fix the values and retry without clicking the button
+again. once the answers have been sent the entry stays consumed, because a
+second attempt would submit the interaction twice. discord expires the
+underlying interaction after roughly 15 minutes; if that happens, click the
+button again.
 
 ### ephemeral replies
 
