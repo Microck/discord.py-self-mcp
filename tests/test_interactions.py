@@ -1,7 +1,20 @@
+import asyncio
+
 import discord
 import pytest
 
+from discord_py_self_mcp import modal_store
 from discord_py_self_mcp.tools import interactions
+
+
+@pytest.fixture(autouse=True)
+def _no_rate_limit(monkeypatch):
+    """The limiter is enabled by default and spaces actions 12s apart."""
+
+    async def noop(action_type):
+        return None
+
+    monkeypatch.setattr(interactions, "apply_rate_limit", noop)
 
 
 # --- Fakes -------------------------------------------------------------------
@@ -264,3 +277,759 @@ async def test_falls_back_to_search_without_app_id(monkeypatch):
     )
     assert result[0].text.startswith("Executed slash command: /foo")
     assert fake_cmd.called_with is not None
+
+
+# --- Button / modal fakes ----------------------------------------------------
+
+
+class FakeTextInput:
+    def __init__(self, custom_id, label=None, required=True,
+                 min_length=None, max_length=None):
+        self.custom_id = custom_id
+        self.label = label
+        self.required = required
+        self.min_length = min_length
+        self.max_length = max_length
+        self.value = None
+
+    def answer(self, value, /):
+        self.value = value
+
+
+class FakeActionRow:
+    def __init__(self, *children):
+        self.children = list(children)
+
+
+class FakeModal:
+    def __init__(self, custom_id="auth_profile:ABC", title="프로필", components=None):
+        self.custom_id = custom_id
+        self.title = title
+        self.components = components or []
+        self.submitted = False
+
+    async def submit(self):
+        self.submitted = True
+
+
+class FakeButton(discord.Button):
+    """Must subclass the real Button: click_button gates on isinstance.
+
+    discord.Button uses __slots__ and sets __repr_info__ = __slots__, so an
+    unset slot blows up repr() when an assertion fails. Every slot is filled
+    here. The subclass itself declares no __slots__, so it still gets a
+    __dict__ for the test-only attributes.
+    """
+
+    def __init__(self, custom_id, label=None, disabled=False, click_result=None):
+        self.message = None
+        self.style = None
+        self.custom_id = custom_id
+        self.url = None
+        self.disabled = disabled
+        self.label = label
+        self.emoji = None
+        self._click_result = click_result
+        self.clicked = False
+
+    async def click(self):
+        self.clicked = True
+        return self._click_result
+
+
+class FakeMessageChannel(discord.abc.Messageable):
+    def __init__(self, channel_id=1, message=None):
+        self.id = channel_id
+        self._message = message
+
+    async def _get_channel(self):
+        return self
+
+    async def fetch_message(self, message_id):
+        return self._message
+
+
+class FakeMessage:
+    def __init__(self, *rows):
+        self.components = list(rows)
+
+
+class FakeFlags:
+    def __init__(self, value=0):
+        self.value = value
+
+
+class FakeCachedMessage:
+    """An ephemeral reply as it lands in the gateway cache."""
+
+    def __init__(self, message_id, channel, *rows, content="", ephemeral=True,
+                 author="bot"):
+        self.id = message_id
+        self.channel = channel
+        self.components = list(rows)
+        self.content = content
+        self.embeds = []
+        self.author = author
+        self.flags = FakeFlags(1 << 6 if ephemeral else 0)
+
+
+class FakeModalClient:
+    """Client stub whose wait_for either yields a modal or times out."""
+
+    def __init__(self, channel=None, modal=None, cached=()):
+        self._channel = channel
+        self._modal = modal
+        self.cached_messages = list(cached)
+
+    def get_channel(self, channel_id):
+        return self._channel
+
+    async def wait_for(self, event, timeout=None):
+        assert event == "modal"
+        if self._modal is None:
+            raise asyncio.TimeoutError
+        return self._modal
+
+
+class BlockingModalClient(FakeModalClient):
+    """wait_for that hangs like a real gateway listen, recording cancellation."""
+
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.waiter_cancelled = False
+
+    async def wait_for(self, event, timeout=None):
+        assert event == "modal"
+        try:
+            await asyncio.sleep(30)
+        except asyncio.CancelledError:
+            self.waiter_cancelled = True
+            raise
+
+
+class NotFoundChannel(FakeMessageChannel):
+    """Channel whose REST fetch 404s, like an ephemeral message."""
+
+    async def fetch_message(self, message_id):
+        raise discord.NotFound(
+            type("R", (), {"status": 404, "reason": "Not Found"})(),
+            "message not found",
+        )
+
+
+# --- click_button ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_click_button_without_modal_keeps_legacy_message(monkeypatch):
+    button = FakeButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(interactions, "client", FakeModalClient(channel=channel))
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert button.clicked
+    assert result[0].text == "Button clicked"
+
+
+@pytest.mark.asyncio
+async def test_click_button_without_modal_does_not_wait_for_it(monkeypatch):
+    """A cleanly acked click cannot be followed by a modal, so the modal
+    window must not run: ordinary clicks return promptly."""
+
+    class InstantButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            await asyncio.sleep(0.05)
+            return None
+
+    button = InstantButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    client_stub = BlockingModalClient(channel=channel)
+    monkeypatch.setattr(interactions, "client", client_stub)
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert result[0].text == "Button clicked"
+    # Task.cancel() is asynchronous: give the loop a tick so the sleeping
+    # waiter actually observes the cancellation before we assert on it.
+    for _ in range(5):
+        await asyncio.sleep(0)
+    assert client_stub.waiter_cancelled
+
+
+@pytest.mark.asyncio
+async def test_click_button_reports_modal_fields(monkeypatch):
+    """A real modal button always raises from click(): the INTERACTION_MODAL_CREATE
+    answer is rejected as an ack (components.py documents InvalidData as 'doesn't
+    mean the interaction failed'), so a faithful fake raises too."""
+
+    class ModalButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            raise discord.InvalidData(
+                "Did not receive a response from Discord"
+            )
+
+    modal = FakeModal(
+        custom_id="auth_profile:ABC",
+        components=[FakeActionRow(
+            FakeTextInput("profile_username", label="유저네임",
+                          required=True, min_length=3, max_length=20)
+        )],
+    )
+    button = ModalButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(
+        interactions, "client", FakeModalClient(channel=channel, modal=modal)
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    text = result[0].text
+    assert "auth_profile:ABC" in text
+    assert "profile_username" in text
+    assert "유저네임" in text
+
+
+@pytest.mark.asyncio
+async def test_click_button_url_button_is_unchanged(monkeypatch):
+    button = FakeButton("link", click_result="https://example.com")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(interactions, "client", FakeModalClient(channel=channel))
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "link"}
+    )
+
+    assert result[0].text == "Button is a URL: https://example.com"
+
+
+@pytest.mark.asyncio
+async def test_click_button_reports_modal_even_if_click_raises(monkeypatch):
+    """Real showModal buttons intermittently raise InvalidData yet still
+    deliver the modal. The modal decides the outcome, not the exception."""
+
+    class RaisingButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            raise discord.InvalidData("Did not receive a response from Discord")
+
+    modal = FakeModal(
+        custom_id="auth_profile:ABC",
+        components=[FakeActionRow(FakeTextInput("profile_username"))],
+    )
+    button = RaisingButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(
+        interactions, "client", FakeModalClient(channel=channel, modal=modal)
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert "auth_profile:ABC" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_click_button_surfaces_error_when_no_modal_arrives(monkeypatch):
+    class RaisingButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            raise discord.InvalidData("boom")
+
+    button = RaisingButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(interactions, "client", FakeModalClient(channel=channel))
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert "boom" in result[0].text
+
+
+# --- context menu commands ---------------------------------------------------
+
+
+class FakeContextCommand:
+    def __init__(self, name, application_id=None):
+        self.name = name
+        self.application_id = application_id
+        self.called_with = None
+
+    async def __call__(self, target, *, channel=None):
+        self.called_with = (target, channel)
+
+
+class FakeUserCommand(FakeContextCommand):
+    pass
+
+
+class FakeMessageCommand(FakeContextCommand):
+    pass
+
+
+class CommandChannel(FakeMessageChannel):
+    def __init__(self, channel_id=1, commands=(), message=None):
+        super().__init__(channel_id=channel_id, message=message)
+        self._commands = list(commands)
+
+    async def application_commands(self):
+        return self._commands
+
+
+class FakeCommandClient(FakeModalClient):
+    def __init__(self, channel=None, users=None, **kw):
+        super().__init__(channel=channel, **kw)
+        self._users = users or {}
+
+    def get_user(self, user_id):
+        return self._users.get(user_id)
+
+
+@pytest.fixture
+def _context_command_types(monkeypatch):
+    monkeypatch.setattr(discord, "UserCommand", FakeUserCommand)
+    monkeypatch.setattr(discord, "MessageCommand", FakeMessageCommand)
+
+
+@pytest.mark.asyncio
+async def test_list_application_commands_labels_each_kind(
+    monkeypatch, _context_command_types
+):
+    channel = CommandChannel(commands=[
+        FakeSlashCommand(data={"name": "balance"}),
+        FakeUserCommand("Report User", application_id=42),
+        FakeMessageCommand("Report Message", application_id=42),
+    ])
+    monkeypatch.setattr(discord, "SlashCommand", FakeSlashCommand)
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.list_application_commands(
+        {"channel_id": "1"}
+    ))[0].text
+
+    assert "user: 'Report User'" in text
+    assert "message: 'Report Message'" in text
+    assert "slash: 'balance'" in text
+
+
+@pytest.mark.asyncio
+async def test_list_application_commands_filters_by_kind(
+    monkeypatch, _context_command_types
+):
+    channel = CommandChannel(commands=[
+        FakeUserCommand("Report User"),
+        FakeMessageCommand("Report Message"),
+    ])
+    monkeypatch.setattr(discord, "SlashCommand", FakeSlashCommand)
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.list_application_commands(
+        {"channel_id": "1", "kind": "user"}
+    ))[0].text
+
+    assert "Report User" in text
+    assert "Report Message" not in text
+
+
+@pytest.mark.asyncio
+async def test_send_user_command_invokes_with_target(
+    monkeypatch, _context_command_types
+):
+    command = FakeUserCommand("Report User")
+    channel = CommandChannel(commands=[command])
+    user = FakeUser(999, name="victim")
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeCommandClient(channel=channel, users={999: user}),
+    )
+
+    text = (await interactions.send_user_command(
+        {"channel_id": "1", "user_id": "999", "command_name": "Report User"}
+    ))[0].text
+
+    assert command.called_with[0] is user
+    assert command.called_with[1] is channel
+    assert "Executed user command" in text
+
+
+@pytest.mark.asyncio
+async def test_send_user_command_lists_available_when_missing(
+    monkeypatch, _context_command_types
+):
+    channel = CommandChannel(commands=[FakeUserCommand("Report User")])
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeCommandClient(channel=channel, users={999: FakeUser(999)}),
+    )
+
+    text = (await interactions.send_user_command(
+        {"channel_id": "1", "user_id": "999", "command_name": "Nope"}
+    ))[0].text
+
+    assert "'Nope' not found" in text
+    assert "Report User" in text
+
+
+@pytest.mark.asyncio
+async def test_send_message_command_invokes_with_target(
+    monkeypatch, _context_command_types
+):
+    command = FakeMessageCommand("Report Message")
+    target = FakeMessage()
+    target.id = 555
+    channel = CommandChannel(commands=[command], message=target)
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.send_message_command(
+        {"channel_id": "1", "message_id": "555",
+         "command_name": "Report Message"}
+    ))[0].text
+
+    assert command.called_with[0] is target
+    assert "Executed message command" in text
+
+
+@pytest.mark.asyncio
+async def test_send_message_command_ignores_other_kinds(
+    monkeypatch, _context_command_types
+):
+    """A user command with the same name must not satisfy a message command."""
+    channel = CommandChannel(
+        commands=[FakeUserCommand("Report")], message=FakeMessage()
+    )
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.send_message_command(
+        {"channel_id": "1", "message_id": "555", "command_name": "Report"}
+    ))[0].text
+
+    assert "not found" in text
+
+
+def test_context_command_types_exist_and_differ():
+    """The tests above fake out UserCommand/MessageCommand via monkeypatching;
+    this pins the real library contract they rely on."""
+    assert discord.UserCommand is not None
+    assert discord.MessageCommand is not None
+    assert discord.UserCommand is not discord.MessageCommand
+
+
+@pytest.mark.asyncio
+async def test_send_user_command_explains_application_id_mismatch(
+    monkeypatch, _context_command_types
+):
+    """A wrong application_id must not read as 'command missing' when the
+    name is right there in the available list."""
+    channel = CommandChannel(commands=[FakeUserCommand("Report User")])
+    user = FakeUser(999)
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeCommandClient(channel=channel, users={999: user}),
+    )
+
+    text = (await interactions.send_user_command(
+        {"channel_id": "1", "user_id": "999", "command_name": "Report User",
+         "application_id": "1234567890"}
+    ))[0].text
+
+    assert "not registered by application 1234567890" in text
+    assert "Report User" in text
+
+
+@pytest.mark.asyncio
+async def test_send_message_command_reports_missing_target_message(
+    monkeypatch, _context_command_types
+):
+    """A NotFound on the target message reads as 'Message not found',
+    matching click_button's wording for the same condition."""
+    command = FakeMessageCommand("Report Message")
+    monkeypatch.setattr(discord, "MessageCommand", FakeMessageCommand)
+
+    class NoMessageChannel(CommandChannel):
+        async def fetch_message(self, message_id):
+            raise discord.NotFound(
+                type("R", (), {"status": 404, "reason": "Not Found"})(),
+                "message not found",
+            )
+
+    channel = NoMessageChannel(channel_id=1, commands=[command])
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.send_message_command(
+        {"channel_id": "1", "message_id": "404", "command_name": "Report Message"}
+    ))[0].text
+
+    assert text == "Message not found"
+
+
+# --- ephemeral support -------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_click_button_falls_back_to_cache_when_fetch_404s(monkeypatch):
+    """Ephemeral replies 404 over REST but are reachable in the cache."""
+    button = FakeButton("route-one:authentication:age:no")
+    channel = NotFoundChannel(channel_id=1)
+    cached = FakeCachedMessage(2, channel, FakeActionRow(button))
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeModalClient(channel=channel, cached=[cached]),
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2",
+         "custom_id": "route-one:authentication:age:no"}
+    )
+
+    assert button.clicked
+    assert result[0].text == "Button clicked"
+
+
+@pytest.mark.asyncio
+async def test_click_button_reports_not_found_when_cache_misses(monkeypatch):
+    channel = NotFoundChannel(channel_id=1)
+    monkeypatch.setattr(
+        interactions, "client", FakeModalClient(channel=channel, cached=[])
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "999", "custom_id": "whatever"}
+    )
+
+    assert "Error clicking button" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_ephemeral_messages_reports_ids_and_buttons(monkeypatch):
+    channel = FakeMessageChannel(channel_id=77)
+    eph = FakeCachedMessage(
+        501, channel,
+        FakeActionRow(FakeButton("route-one:authentication:age:yes")),
+        content="age question",
+    )
+    normal = FakeCachedMessage(502, channel, content="public", ephemeral=False)
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeModalClient(channel=channel, cached=[normal, eph]),
+    )
+
+    result = await interactions.list_ephemeral_messages({})
+
+    text = result[0].text
+    assert "message_id=501" in text
+    assert "route-one:authentication:age:yes" in text
+    assert "502" not in text
+
+
+@pytest.mark.asyncio
+async def test_list_ephemeral_messages_filters_by_channel(monkeypatch):
+    here = FakeMessageChannel(channel_id=77)
+    elsewhere = FakeMessageChannel(channel_id=88)
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeModalClient(cached=[
+            FakeCachedMessage(601, here, content="mine"),
+            FakeCachedMessage(602, elsewhere, content="other"),
+        ]),
+    )
+
+    result = await interactions.list_ephemeral_messages({"channel_id": "77"})
+
+    assert "601" in result[0].text
+    assert "602" not in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_ephemeral_messages_explains_empty_cache(monkeypatch):
+    monkeypatch.setattr(interactions, "client", FakeModalClient(cached=[]))
+    result = await interactions.list_ephemeral_messages({})
+    assert "No ephemeral replies cached" in result[0].text
+
+
+# --- submit_modal ------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clean_modal_store():
+    modal_store.clear()
+    yield
+    modal_store.clear()
+
+
+def _stash(modal):
+    modal_store.put(modal)
+    return modal
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_answers_and_submits():
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(FakeModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC",
+         "values": {"profile_username": "erickong1108"}}
+    )
+
+    assert field.value == "erickong1108"
+    assert modal.submitted
+    assert "submitted" in result[0].text.lower()
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_consumes_the_entry():
+    modal = _stash(FakeModal(components=[
+        FakeActionRow(FakeTextInput("profile_username", required=False))
+    ]))
+    await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+    assert modal_store.take("auth_profile:ABC") is None
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_unknown_id_explains():
+    _stash(FakeModal(custom_id="other"))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:GONE", "values": {}}
+    )
+
+    text = result[0].text
+    assert "auth_profile:GONE" in text
+    assert "other" in text
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_missing_required_field_is_rejected():
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(FakeModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+
+    assert "profile_username" in result[0].text
+    assert not modal.submitted
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_missing_required_field_keeps_the_modal():
+    _stash(FakeModal(components=[
+        FakeActionRow(FakeTextInput("profile_username", required=True))
+    ]))
+    await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+    assert modal_store.take("auth_profile:ABC") is not None
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_reports_unknown_keys():
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(FakeModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC",
+         "values": {"profile_username": "ok", "typo_field": "x"}}
+    )
+
+    assert "typo_field" in result[0].text
+    assert not modal.submitted
+    # Values are rejected wholesale: nothing is applied, so the caller can
+    # resubmit the corrected set against the restored modal.
+    assert field.value is None
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_rejects_before_submitting_on_unknown_keys():
+    """An unknown key means a mistyped field id; submitting would leave the
+    real field empty irreversibly. The modal must be rejected pre-submit and
+    put back so the values can be corrected."""
+
+    class GuardedModal(FakeModal):
+        async def submit(self):
+            raise AssertionError("submit must not run for unknown fields")
+
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(GuardedModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC",
+         "values": {"profile_username": "ok", "typo_field": "x"}}
+    )
+
+    text = result[0].text
+    assert "typo_field" in text
+    assert "was not submitted" in text
+    # Restoration path identical to the missing-required rejection.
+    assert modal_store.take("auth_profile:ABC") is modal
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_rate_limit_failure_keeps_the_modal(monkeypatch):
+    """A pre-submit failure restores the entry so a transient error can be
+    retried without clicking the button again."""
+
+    async def blocked(action_type):
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(interactions, "apply_rate_limit", blocked)
+    modal = _stash(FakeModal(components=[
+        FakeActionRow(FakeTextInput("profile_username", required=False))
+    ]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+
+    assert "rate limited" in result[0].text
+    assert not modal.submitted
+    assert modal_store.take("auth_profile:ABC") is modal
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_length_violation_is_reported():
+    class StrictInput(FakeTextInput):
+        def answer(self, value, /):
+            raise ValueError("value must be at least 3 characters long")
+
+    modal = _stash(FakeModal(components=[
+        FakeActionRow(StrictInput("profile_username", required=True))
+    ]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {"profile_username": "a"}}
+    )
+
+    assert "at least 3 characters" in result[0].text
+    assert not modal.submitted
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_values_must_be_an_object():
+    _stash(FakeModal())
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": "nope"}
+    )
+    assert "values must be an object" in result[0].text

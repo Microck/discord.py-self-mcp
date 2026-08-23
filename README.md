@@ -187,7 +187,7 @@ powered by the robust `discord.py-self` library.
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
-| **interactions** | 3 | send_slash_command, click_button, select_menu |
+| **interactions** | 8 | send_slash_command, click_button, select_menu, submit_modal, list_ephemeral_messages, list_application_commands, send_user_command, send_message_command |
 | **threads** | 5 | create_thread, send_thread_message, list_active_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
 | **roles** | 6 | list_roles, get_role, create_role, edit_role, delete_role, reorder_roles |
@@ -266,6 +266,67 @@ are space-separated in `command_name` (e.g. `"config set"`). Example:
 }
 ```
 
+### context menu commands
+
+`list_application_commands` shows everything a channel offers — slash commands
+plus the user and message commands that live in the right-click "Apps" menu:
+
+```json
+{ "channel_id": "123456789012345678", "kind": "all" }
+```
+
+invoke them with `send_user_command` (targets a user) or
+`send_message_command` (targets a message):
+
+```json
+{
+  "channel_id": "123456789012345678",
+  "user_id": "987654321098765432",
+  "command_name": "Report User"
+}
+```
+
+a name is only matched within its own kind, so a user command never satisfies
+`send_message_command`. pass `application_id` when two apps register the same
+name.
+
+### modals
+
+when a button or slash command opens a modal, `click_button` reports the
+modal's `custom_id` and its fields instead of a bare "Button clicked". feed
+those into `submit_modal`:
+
+```json
+{
+  "custom_id": "auth_profile:ABC123",
+  "values": { "profile_username": "your_username" }
+}
+```
+
+pending modals are held for the session (up to 16 at a time) and are consumed
+on submit. a modal is put back when the submit is rejected — unknown field
+ids, missing required fields, or a failed send before anything reached
+discord — so you can fix the values and retry without clicking the button
+again. once the answers have been sent the entry stays consumed, because a
+second attempt would submit the interaction twice. discord expires the
+underlying interaction after roughly 15 minutes; if that happens, click the
+button again.
+
+### ephemeral replies
+
+most bots answer a click or a slash command with an ephemeral reply — the
+private "only you can see this" message. discord never persists those, so
+`read_messages` cannot see them and `fetch_message` returns 404. they do
+arrive over the gateway, so `list_ephemeral_messages` reads them out of the
+cache and `click_button` / `select_menu` fall back to the cache when the REST
+fetch 404s. that makes multi-step flows reachable:
+
+    click_button(panel)                -> bot replies ephemerally
+    list_ephemeral_messages(channel)   -> message_id + its buttons
+    click_button(that message_id, ...) -> next ephemeral step
+
+only replies received while this server was connected are cached.
+
 ### discrawl integration
 
 Use `run_discrawl` to execute local `discrawl` commands directly from MCP.
@@ -328,6 +389,9 @@ It returns attachment metadata for the target message and can stream image/file 
 | **slash commands** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **click buttons** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **select menus** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **submit modals** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **ephemeral replies** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **context menu commands** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **kick/ban** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **invites** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **profile edit** | ✅ | ✅ | ❌ | ❌ | ❌ |
