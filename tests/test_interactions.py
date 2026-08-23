@@ -724,6 +724,64 @@ async def test_send_message_command_ignores_other_kinds(
     assert "not found" in text
 
 
+def test_context_command_types_exist_and_differ():
+    """The tests above fake out UserCommand/MessageCommand via monkeypatching;
+    this pins the real library contract they rely on."""
+    assert discord.UserCommand is not None
+    assert discord.MessageCommand is not None
+    assert discord.UserCommand is not discord.MessageCommand
+
+
+@pytest.mark.asyncio
+async def test_send_user_command_explains_application_id_mismatch(
+    monkeypatch, _context_command_types
+):
+    """A wrong application_id must not read as 'command missing' when the
+    name is right there in the available list."""
+    channel = CommandChannel(commands=[FakeUserCommand("Report User")])
+    user = FakeUser(999)
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeCommandClient(channel=channel, users={999: user}),
+    )
+
+    text = (await interactions.send_user_command(
+        {"channel_id": "1", "user_id": "999", "command_name": "Report User",
+         "application_id": "1234567890"}
+    ))[0].text
+
+    assert "not registered by application 1234567890" in text
+    assert "Report User" in text
+
+
+@pytest.mark.asyncio
+async def test_send_message_command_reports_missing_target_message(
+    monkeypatch, _context_command_types
+):
+    """A NotFound on the target message reads as 'Message not found',
+    matching click_button's wording for the same condition."""
+    command = FakeMessageCommand("Report Message")
+    monkeypatch.setattr(discord, "MessageCommand", FakeMessageCommand)
+
+    class NoMessageChannel(CommandChannel):
+        async def fetch_message(self, message_id):
+            raise discord.NotFound(
+                type("R", (), {"status": 404, "reason": "Not Found"})(),
+                "message not found",
+            )
+
+    channel = NoMessageChannel(channel_id=1, commands=[command])
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.send_message_command(
+        {"channel_id": "1", "message_id": "404", "command_name": "Report Message"}
+    ))[0].text
+
+    assert text == "Message not found"
+
+
 # --- ephemeral support -------------------------------------------------------
 
 

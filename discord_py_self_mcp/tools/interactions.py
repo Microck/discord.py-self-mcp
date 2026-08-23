@@ -483,6 +483,7 @@ async def _find_context_command(channel, name, kind, application_id):
     commands = await _collect_commands(channel.application_commands())
     wanted = discord.UserCommand if kind == "user" else discord.MessageCommand
     available = []
+    id_mismatch = False
     for command in commands:
         if not isinstance(command, wanted):
             continue
@@ -492,9 +493,19 @@ async def _find_context_command(channel, name, kind, application_id):
         if application_id and str(
             getattr(command, "application_id", "")
         ) != str(application_id):
+            # The name exists but belongs to another application: keep it
+            # visible in `available` while flagging the mismatch so the
+            # caller can say why the command was not run.
+            id_mismatch = True
             continue
-        return command, available
-    return None, available
+        return command, available, None
+    return None, available, (
+        f"Command {name!r} exists but is not registered by application "
+        f"{application_id}. Pass the right application_id or omit it to "
+        "match any application."
+        if id_mismatch
+        else None
+    )
 
 
 @registry.register(
@@ -585,16 +596,17 @@ async def send_user_command(arguments: dict):
             return error
 
         name = arguments["command_name"]
-        command, available = await _find_context_command(
+        command, available, mismatch = await _find_context_command(
             channel, name, "user", arguments.get("application_id")
         )
         if command is None:
             listing = ", ".join(sorted(available)) or "none"
+            reason = f" {mismatch}" if mismatch else ""
             return [
                 TextContent(
                     type="text",
                     text=(
-                        f"User command {name!r} not found. "
+                        f"User command {name!r} not found.{reason} "
                         f"Available user commands: {listing}"
                     ),
                 )
@@ -656,22 +668,26 @@ async def send_message_command(arguments: dict):
             return error
 
         name = arguments["command_name"]
-        command, available = await _find_context_command(
+        command, available, mismatch = await _find_context_command(
             channel, name, "message", arguments.get("application_id")
         )
         if command is None:
             listing = ", ".join(sorted(available)) or "none"
+            reason = f" {mismatch}" if mismatch else ""
             return [
                 TextContent(
                     type="text",
                     text=(
-                        f"Message command {name!r} not found. "
+                        f"Message command {name!r} not found.{reason} "
                         f"Available message commands: {listing}"
                     ),
                 )
             ]
 
-        message = await _resolve_message(channel, int(arguments["message_id"]))
+        try:
+            message = await _resolve_message(channel, int(arguments["message_id"]))
+        except discord.NotFound:
+            return [TextContent(type="text", text="Message not found")]
 
         await apply_rate_limit("action")
         await command(message, channel=channel)
