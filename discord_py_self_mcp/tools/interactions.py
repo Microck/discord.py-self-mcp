@@ -1,9 +1,54 @@
+import asyncio
 import discord
 import inspect
 from mcp.types import TextContent
 from .registry import registry
 from ..bot import client
+from .. import modal_store
 from ..tool_utils import NON_MESSAGEABLE_TEXT, apply_rate_limit
+
+
+# Discord pushes the modal on a separate gateway event, so the click and the
+# modal are two events. Five seconds is slack for a gateway round trip.
+MODAL_WAIT_SECONDS = 5.0
+
+
+def _describe_modal(modal) -> str:
+    lines = [
+        f"Modal opened: custom_id={modal.custom_id!r} title={modal.title!r}",
+        "Fields (pass these to submit_modal):",
+    ]
+    found = False
+    for row in modal.components or []:
+        for field in getattr(row, "children", []):
+            if not hasattr(field, "custom_id"):
+                continue
+            found = True
+            bits = [f"  - {field.custom_id!r}"]
+            label = getattr(field, "label", None)
+            if label:
+                bits.append(f"label={label!r}")
+            bits.append(
+                "required" if getattr(field, "required", False) else "optional"
+            )
+            min_length = getattr(field, "min_length", None)
+            max_length = getattr(field, "max_length", None)
+            if min_length is not None:
+                bits.append(f"min_length={min_length}")
+            if max_length is not None:
+                bits.append(f"max_length={max_length}")
+            lines.append(" ".join(bits))
+    if not found:
+        lines.append("  (no text inputs)")
+    return "\n".join(lines)
+
+
+async def _wait_for_modal():
+    """Await the next modal, or None if none arrives in time."""
+    try:
+        return await client.wait_for("modal", timeout=MODAL_WAIT_SECONDS)
+    except asyncio.TimeoutError:
+        return None
 
 
 async def _collect_commands(result):
@@ -325,14 +370,30 @@ async def click_button(arguments: dict):
                         )
                     ):
                         await apply_rate_limit("action")
-                        result = await component.click()
+                        waiter = asyncio.ensure_future(_wait_for_modal())
+                        try:
+                            result = await component.click()
+                        except Exception:
+                            waiter.cancel()
+                            raise
                         if isinstance(result, str):
+                            waiter.cancel()
                             return [
                                 TextContent(
                                     type="text", text=f"Button is a URL: {result}"
                                 )
                             ]
-                        return [TextContent(type="text", text="Button clicked")]
+                        modal = await waiter
+                        if modal is None:
+                            return [
+                                TextContent(type="text", text="Button clicked")
+                            ]
+                        return [
+                            TextContent(
+                                type="text",
+                                text="Button clicked.\n" + _describe_modal(modal),
+                            )
+                        ]
 
         return [TextContent(type="text", text="Button not found")]
     except Exception as e:

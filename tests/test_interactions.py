@@ -1,7 +1,20 @@
+import asyncio
+
 import discord
 import pytest
 
+from discord_py_self_mcp import modal_store
 from discord_py_self_mcp.tools import interactions
+
+
+@pytest.fixture(autouse=True)
+def _no_rate_limit(monkeypatch):
+    """The limiter is enabled by default and spaces actions 12s apart."""
+
+    async def noop(action_type):
+        return None
+
+    monkeypatch.setattr(interactions, "apply_rate_limit", noop)
 
 
 # --- Fakes -------------------------------------------------------------------
@@ -264,3 +277,150 @@ async def test_falls_back_to_search_without_app_id(monkeypatch):
     )
     assert result[0].text.startswith("Executed slash command: /foo")
     assert fake_cmd.called_with is not None
+
+
+# --- Button / modal fakes ----------------------------------------------------
+
+
+class FakeTextInput:
+    def __init__(self, custom_id, label=None, required=True,
+                 min_length=None, max_length=None):
+        self.custom_id = custom_id
+        self.label = label
+        self.required = required
+        self.min_length = min_length
+        self.max_length = max_length
+        self.value = None
+
+    def answer(self, value, /):
+        self.value = value
+
+
+class FakeActionRow:
+    def __init__(self, *children):
+        self.children = list(children)
+
+
+class FakeModal:
+    def __init__(self, custom_id="auth_profile:ABC", title="프로필", components=None):
+        self.custom_id = custom_id
+        self.title = title
+        self.components = components or []
+        self.submitted = False
+
+    async def submit(self):
+        self.submitted = True
+
+
+class FakeButton(discord.Button):
+    """Must subclass the real Button: click_button gates on isinstance.
+
+    discord.Button uses __slots__ and sets __repr_info__ = __slots__, so an
+    unset slot blows up repr() when an assertion fails. Every slot is filled
+    here. The subclass itself declares no __slots__, so it still gets a
+    __dict__ for the test-only attributes.
+    """
+
+    def __init__(self, custom_id, label=None, disabled=False, click_result=None):
+        self.message = None
+        self.style = None
+        self.custom_id = custom_id
+        self.url = None
+        self.disabled = disabled
+        self.label = label
+        self.emoji = None
+        self._click_result = click_result
+        self.clicked = False
+
+    async def click(self):
+        self.clicked = True
+        return self._click_result
+
+
+class FakeMessageChannel(discord.abc.Messageable):
+    def __init__(self, channel_id=1, message=None):
+        self.id = channel_id
+        self._message = message
+
+    async def _get_channel(self):
+        return self
+
+    async def fetch_message(self, message_id):
+        return self._message
+
+
+class FakeMessage:
+    def __init__(self, *rows):
+        self.components = list(rows)
+
+
+class FakeModalClient:
+    """Client stub whose wait_for either yields a modal or times out."""
+
+    def __init__(self, channel=None, modal=None):
+        self._channel = channel
+        self._modal = modal
+
+    def get_channel(self, channel_id):
+        return self._channel
+
+    async def wait_for(self, event, timeout=None):
+        assert event == "modal"
+        if self._modal is None:
+            raise asyncio.TimeoutError
+        return self._modal
+
+
+# --- click_button ------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_click_button_without_modal_keeps_legacy_message(monkeypatch):
+    button = FakeButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(interactions, "client", FakeModalClient(channel=channel))
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert button.clicked
+    assert result[0].text == "Button clicked"
+
+
+@pytest.mark.asyncio
+async def test_click_button_reports_modal_fields(monkeypatch):
+    modal = FakeModal(
+        custom_id="auth_profile:ABC",
+        components=[FakeActionRow(
+            FakeTextInput("profile_username", label="유저네임",
+                          required=True, min_length=3, max_length=20)
+        )],
+    )
+    button = FakeButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(
+        interactions, "client", FakeModalClient(channel=channel, modal=modal)
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    text = result[0].text
+    assert "auth_profile:ABC" in text
+    assert "profile_username" in text
+    assert "유저네임" in text
+
+
+@pytest.mark.asyncio
+async def test_click_button_url_button_is_unchanged(monkeypatch):
+    button = FakeButton("link", click_result="https://example.com")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(interactions, "client", FakeModalClient(channel=channel))
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "link"}
+    )
+
+    assert result[0].text == "Button is a URL: https://example.com"
