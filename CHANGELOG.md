@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.5.1...v1.6.0) (2026-08-23)
+
+
+### Features
+
+* submit modals and reach ephemeral interaction replies ([#46](https://github.com/Microck/discord.py-self-mcp/issues/46)) ([0133433](https://github.com/Microck/discord.py-self-mcp/commit/01334336b3beb2177472ff5216bcdd78845967e5))
+
 ## [1.5.1](https://github.com/Microck/discord.py-self-mcp/compare/v1.5.0...v1.5.1) (2026-08-05)
 
 
