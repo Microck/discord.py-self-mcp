@@ -426,6 +426,51 @@ async def test_click_button_url_button_is_unchanged(monkeypatch):
     assert result[0].text == "Button is a URL: https://example.com"
 
 
+@pytest.mark.asyncio
+async def test_click_button_reports_modal_even_if_click_raises(monkeypatch):
+    """Real showModal buttons intermittently raise InvalidData yet still
+    deliver the modal. The modal decides the outcome, not the exception."""
+
+    class RaisingButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            raise discord.InvalidData("Did not receive a response from Discord")
+
+    modal = FakeModal(
+        custom_id="auth_profile:ABC",
+        components=[FakeActionRow(FakeTextInput("profile_username"))],
+    )
+    button = RaisingButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(
+        interactions, "client", FakeModalClient(channel=channel, modal=modal)
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert "auth_profile:ABC" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_click_button_surfaces_error_when_no_modal_arrives(monkeypatch):
+    class RaisingButton(FakeButton):
+        async def click(self):
+            self.clicked = True
+            raise discord.InvalidData("boom")
+
+    button = RaisingButton("auth_panel")
+    channel = FakeMessageChannel(message=FakeMessage(FakeActionRow(button)))
+    monkeypatch.setattr(interactions, "client", FakeModalClient(channel=channel))
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2", "custom_id": "auth_panel"}
+    )
+
+    assert "boom" in result[0].text
+
+
 # --- submit_modal ------------------------------------------------------------
 
 

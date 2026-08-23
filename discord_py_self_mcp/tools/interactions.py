@@ -371,11 +371,18 @@ async def click_button(arguments: dict):
                     ):
                         await apply_rate_limit("action")
                         waiter = asyncio.ensure_future(_wait_for_modal())
+                        click_error = None
+                        result = None
                         try:
                             result = await component.click()
-                        except Exception:
-                            waiter.cancel()
-                            raise
+                        except Exception as e:
+                            # A button that opens a modal answers with
+                            # INTERACTION_MODAL_CREATE, which the library's
+                            # response matching does not accept as an ack, so
+                            # click() intermittently raises InvalidData even
+                            # though the modal arrives. Decide on the modal,
+                            # not on this exception.
+                            click_error = e
                         if isinstance(result, str):
                             waiter.cancel()
                             return [
@@ -384,15 +391,18 @@ async def click_button(arguments: dict):
                                 )
                             ]
                         modal = await waiter
-                        if modal is None:
+                        if modal is not None:
                             return [
-                                TextContent(type="text", text="Button clicked")
+                                TextContent(
+                                    type="text",
+                                    text="Button clicked.\n"
+                                    + _describe_modal(modal),
+                                )
                             ]
+                        if click_error is not None:
+                            raise click_error
                         return [
-                            TextContent(
-                                type="text",
-                                text="Button clicked.\n" + _describe_modal(modal),
-                            )
+                            TextContent(type="text", text="Button clicked")
                         ]
 
         return [TextContent(type="text", text="Button not found")]
