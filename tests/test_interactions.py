@@ -354,12 +354,32 @@ class FakeMessage:
         self.components = list(rows)
 
 
+class FakeFlags:
+    def __init__(self, value=0):
+        self.value = value
+
+
+class FakeCachedMessage:
+    """An ephemeral reply as it lands in the gateway cache."""
+
+    def __init__(self, message_id, channel, *rows, content="", ephemeral=True,
+                 author="bot"):
+        self.id = message_id
+        self.channel = channel
+        self.components = list(rows)
+        self.content = content
+        self.embeds = []
+        self.author = author
+        self.flags = FakeFlags(1 << 6 if ephemeral else 0)
+
+
 class FakeModalClient:
     """Client stub whose wait_for either yields a modal or times out."""
 
-    def __init__(self, channel=None, modal=None):
+    def __init__(self, channel=None, modal=None, cached=()):
         self._channel = channel
         self._modal = modal
+        self.cached_messages = list(cached)
 
     def get_channel(self, channel_id):
         return self._channel
@@ -369,6 +389,16 @@ class FakeModalClient:
         if self._modal is None:
             raise asyncio.TimeoutError
         return self._modal
+
+
+class NotFoundChannel(FakeMessageChannel):
+    """Channel whose REST fetch 404s, like an ephemeral message."""
+
+    async def fetch_message(self, message_id):
+        raise discord.NotFound(
+            type("R", (), {"status": 404, "reason": "Not Found"})(),
+            "message not found",
+        )
 
 
 # --- click_button ------------------------------------------------------------
@@ -469,6 +499,90 @@ async def test_click_button_surfaces_error_when_no_modal_arrives(monkeypatch):
     )
 
     assert "boom" in result[0].text
+
+
+# --- ephemeral support -------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_click_button_falls_back_to_cache_when_fetch_404s(monkeypatch):
+    """Ephemeral replies 404 over REST but are reachable in the cache."""
+    button = FakeButton("route-one:authentication:age:no")
+    channel = NotFoundChannel(channel_id=1)
+    cached = FakeCachedMessage(2, channel, FakeActionRow(button))
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeModalClient(channel=channel, cached=[cached]),
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "2",
+         "custom_id": "route-one:authentication:age:no"}
+    )
+
+    assert button.clicked
+    assert result[0].text == "Button clicked"
+
+
+@pytest.mark.asyncio
+async def test_click_button_reports_not_found_when_cache_misses(monkeypatch):
+    channel = NotFoundChannel(channel_id=1)
+    monkeypatch.setattr(
+        interactions, "client", FakeModalClient(channel=channel, cached=[])
+    )
+
+    result = await interactions.click_button(
+        {"channel_id": "1", "message_id": "999", "custom_id": "whatever"}
+    )
+
+    assert "Error clicking button" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_ephemeral_messages_reports_ids_and_buttons(monkeypatch):
+    channel = FakeMessageChannel(channel_id=77)
+    eph = FakeCachedMessage(
+        501, channel,
+        FakeActionRow(FakeButton("route-one:authentication:age:yes")),
+        content="age question",
+    )
+    normal = FakeCachedMessage(502, channel, content="public", ephemeral=False)
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeModalClient(channel=channel, cached=[normal, eph]),
+    )
+
+    result = await interactions.list_ephemeral_messages({})
+
+    text = result[0].text
+    assert "message_id=501" in text
+    assert "route-one:authentication:age:yes" in text
+    assert "502" not in text
+
+
+@pytest.mark.asyncio
+async def test_list_ephemeral_messages_filters_by_channel(monkeypatch):
+    here = FakeMessageChannel(channel_id=77)
+    elsewhere = FakeMessageChannel(channel_id=88)
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeModalClient(cached=[
+            FakeCachedMessage(601, here, content="mine"),
+            FakeCachedMessage(602, elsewhere, content="other"),
+        ]),
+    )
+
+    result = await interactions.list_ephemeral_messages({"channel_id": "77"})
+
+    assert "601" in result[0].text
+    assert "602" not in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_ephemeral_messages_explains_empty_cache(monkeypatch):
+    monkeypatch.setattr(interactions, "client", FakeModalClient(cached=[]))
+    result = await interactions.list_ephemeral_messages({})
+    assert "No ephemeral replies cached" in result[0].text
 
 
 # --- submit_modal ------------------------------------------------------------

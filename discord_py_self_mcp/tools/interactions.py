@@ -51,6 +51,37 @@ async def _wait_for_modal():
         return None
 
 
+EPHEMERAL_FLAG = 1 << 6
+
+
+def _is_ephemeral(message) -> bool:
+    return bool(getattr(message.flags, "value", 0) & EPHEMERAL_FLAG)
+
+
+def _cached_message(message_id: int):
+    for message in client.cached_messages:
+        if message.id == message_id:
+            return message
+    return None
+
+
+async def _resolve_message(channel, message_id: int):
+    """Fetch a message, falling back to the gateway cache.
+
+    Ephemeral interaction responses are never persisted, so the REST route
+    404s on them. They do arrive over the gateway and land in the client's
+    message cache, and their components stay usable, so the cache is the only
+    way to reach a button on an interaction reply.
+    """
+    try:
+        return await channel.fetch_message(message_id)
+    except discord.NotFound:
+        cached = _cached_message(message_id)
+        if cached is None:
+            raise
+        return cached
+
+
 async def _collect_commands(result):
     if inspect.isawaitable(result):
         result = await result
@@ -351,7 +382,7 @@ async def click_button(arguments: dict):
         if not isinstance(channel, discord.abc.Messageable):
             return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
 
-        message = await channel.fetch_message(message_id)
+        message = await _resolve_message(channel, message_id)
         if not message:
             return [TextContent(type="text", text="Message not found")]
 
@@ -408,6 +439,89 @@ async def click_button(arguments: dict):
         return [TextContent(type="text", text="Button not found")]
     except Exception as e:
         return [TextContent(type="text", text=f"Error clicking button: {str(e)}")]
+
+
+@registry.register(
+    name="list_ephemeral_messages",
+    description=(
+        "List recent ephemeral interaction replies (the private 'only you can "
+        "see this' messages a bot sends in response to a click or command). "
+        "They cannot be read with read_messages because Discord never "
+        "persists them. Use this to get the message_id of a reply whose "
+        "buttons you want to click."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel_id": {
+                "type": "string",
+                "description": "Only list replies in this channel (optional)",
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum replies to return, newest first (default 10)",
+            },
+        },
+        "required": [],
+    },
+)
+async def list_ephemeral_messages(arguments: dict):
+    try:
+        channel_id = arguments.get("channel_id")
+        channel_id = int(channel_id) if channel_id else None
+        limit = arguments.get("limit") or 10
+
+        found = []
+        for message in reversed(client.cached_messages):
+            if not _is_ephemeral(message):
+                continue
+            if channel_id is not None and message.channel.id != channel_id:
+                continue
+            found.append(message)
+            if len(found) >= limit:
+                break
+
+        if not found:
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        "No ephemeral replies cached. They are only captured "
+                        "while this server is connected, so trigger the "
+                        "interaction first, then call this."
+                    ),
+                )
+            ]
+
+        lines = []
+        for message in found:
+            buttons = [
+                c.custom_id
+                for row in (message.components or [])
+                for c in getattr(row, "children", [])
+                if getattr(c, "custom_id", None)
+            ]
+            summary = message.content or ""
+            if not summary and message.embeds:
+                embed = message.embeds[0]
+                summary = embed.title or embed.description or "(embed)"
+            lines.append(
+                f"- message_id={message.id} channel_id={message.channel.id} "
+                f"author={message.author} content={summary[:120]!r} "
+                f"buttons={buttons}"
+            )
+        return [TextContent(type="text", text="\n".join(lines))]
+
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=(
+                    "Error listing ephemeral messages: "
+                    f"{type(e).__name__}: {str(e)}"
+                ),
+            )
+        ]
 
 
 def _modal_fields(modal) -> dict:
@@ -572,7 +686,7 @@ async def select_menu(arguments: dict):
 
         if not isinstance(channel, discord.abc.Messageable):
             return [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
-        message = await channel.fetch_message(message_id)
+        message = await _resolve_message(channel, message_id)
 
         for row_idx, action_row in enumerate(message.components or []):
             for col_idx, component in enumerate(action_row.children):

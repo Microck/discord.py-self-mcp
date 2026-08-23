@@ -187,7 +187,7 @@ powered by the robust `discord.py-self` library.
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
-| **interactions** | 4 | send_slash_command, click_button, select_menu, submit_modal |
+| **interactions** | 5 | send_slash_command, click_button, select_menu, submit_modal, list_ephemeral_messages |
 | **threads** | 5 | create_thread, send_thread_message, list_active_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
 | **roles** | 6 | list_roles, get_role, create_role, edit_role, delete_role, reorder_roles |
@@ -284,6 +284,21 @@ on submit. a modal is kept if the submit is rejected, so you can fix the values
 and retry without clicking the button again. discord expires the underlying
 interaction after roughly 15 minutes; if that happens, click the button again.
 
+### ephemeral replies
+
+most bots answer a click or a slash command with an ephemeral reply — the
+private "only you can see this" message. discord never persists those, so
+`read_messages` cannot see them and `fetch_message` returns 404. they do
+arrive over the gateway, so `list_ephemeral_messages` reads them out of the
+cache and `click_button` / `select_menu` fall back to the cache when the REST
+fetch 404s. that makes multi-step flows reachable:
+
+    click_button(panel)                -> bot replies ephemerally
+    list_ephemeral_messages(channel)   -> message_id + its buttons
+    click_button(that message_id, ...) -> next ephemeral step
+
+only replies received while this server was connected are cached.
+
 ### discrawl integration
 
 Use `run_discrawl` to execute local `discrawl` commands directly from MCP.
@@ -347,6 +362,7 @@ It returns attachment metadata for the target message and can stream image/file 
 | **click buttons** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **select menus** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **submit modals** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **ephemeral replies** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **kick/ban** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **invites** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **profile edit** | ✅ | ✅ | ❌ | ❌ | ❌ |
