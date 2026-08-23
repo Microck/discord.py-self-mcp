@@ -10,6 +10,7 @@ from discord_py_self_mcp.rate_limiter import (
     RateLimiter,
 )
 from discord_py_self_mcp.logging_utils import log_to_stderr
+from discord_py_self_mcp import modal_store
 
 load_dotenv()
 
@@ -78,6 +79,10 @@ class SelfBot(discord.Client):
 
     async def on_resumed(self):
         log_to_stderr("[RESUMED] Session resumed")
+
+    async def on_modal(self, modal):
+        modal_store.put(modal)
+        log_to_stderr(f"[MODAL] Received {modal.custom_id!r} ({modal.title!r})")
 
     async def on_captcha(self, data: Dict[str, Any]) -> str:
         return await solve_captcha()
