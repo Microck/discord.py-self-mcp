@@ -501,6 +501,174 @@ async def test_click_button_surfaces_error_when_no_modal_arrives(monkeypatch):
     assert "boom" in result[0].text
 
 
+# --- context menu commands ---------------------------------------------------
+
+
+class FakeContextCommand:
+    def __init__(self, name, application_id=None):
+        self.name = name
+        self.application_id = application_id
+        self.called_with = None
+
+    async def __call__(self, target, *, channel=None):
+        self.called_with = (target, channel)
+
+
+class FakeUserCommand(FakeContextCommand):
+    pass
+
+
+class FakeMessageCommand(FakeContextCommand):
+    pass
+
+
+class CommandChannel(FakeMessageChannel):
+    def __init__(self, channel_id=1, commands=(), message=None):
+        super().__init__(channel_id=channel_id, message=message)
+        self._commands = list(commands)
+
+    async def application_commands(self):
+        return self._commands
+
+
+class FakeCommandClient(FakeModalClient):
+    def __init__(self, channel=None, users=None, **kw):
+        super().__init__(channel=channel, **kw)
+        self._users = users or {}
+
+    def get_user(self, user_id):
+        return self._users.get(user_id)
+
+
+@pytest.fixture
+def _context_command_types(monkeypatch):
+    monkeypatch.setattr(discord, "UserCommand", FakeUserCommand)
+    monkeypatch.setattr(discord, "MessageCommand", FakeMessageCommand)
+
+
+@pytest.mark.asyncio
+async def test_list_application_commands_labels_each_kind(
+    monkeypatch, _context_command_types
+):
+    channel = CommandChannel(commands=[
+        FakeSlashCommand(data={"name": "balance"}),
+        FakeUserCommand("Report User", application_id=42),
+        FakeMessageCommand("Report Message", application_id=42),
+    ])
+    monkeypatch.setattr(discord, "SlashCommand", FakeSlashCommand)
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.list_application_commands(
+        {"channel_id": "1"}
+    ))[0].text
+
+    assert "user: 'Report User'" in text
+    assert "message: 'Report Message'" in text
+    assert "slash: 'balance'" in text
+
+
+@pytest.mark.asyncio
+async def test_list_application_commands_filters_by_kind(
+    monkeypatch, _context_command_types
+):
+    channel = CommandChannel(commands=[
+        FakeUserCommand("Report User"),
+        FakeMessageCommand("Report Message"),
+    ])
+    monkeypatch.setattr(discord, "SlashCommand", FakeSlashCommand)
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.list_application_commands(
+        {"channel_id": "1", "kind": "user"}
+    ))[0].text
+
+    assert "Report User" in text
+    assert "Report Message" not in text
+
+
+@pytest.mark.asyncio
+async def test_send_user_command_invokes_with_target(
+    monkeypatch, _context_command_types
+):
+    command = FakeUserCommand("Report User")
+    channel = CommandChannel(commands=[command])
+    user = FakeUser(999, name="victim")
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeCommandClient(channel=channel, users={999: user}),
+    )
+
+    text = (await interactions.send_user_command(
+        {"channel_id": "1", "user_id": "999", "command_name": "Report User"}
+    ))[0].text
+
+    assert command.called_with[0] is user
+    assert command.called_with[1] is channel
+    assert "Executed user command" in text
+
+
+@pytest.mark.asyncio
+async def test_send_user_command_lists_available_when_missing(
+    monkeypatch, _context_command_types
+):
+    channel = CommandChannel(commands=[FakeUserCommand("Report User")])
+    monkeypatch.setattr(
+        interactions, "client",
+        FakeCommandClient(channel=channel, users={999: FakeUser(999)}),
+    )
+
+    text = (await interactions.send_user_command(
+        {"channel_id": "1", "user_id": "999", "command_name": "Nope"}
+    ))[0].text
+
+    assert "'Nope' not found" in text
+    assert "Report User" in text
+
+
+@pytest.mark.asyncio
+async def test_send_message_command_invokes_with_target(
+    monkeypatch, _context_command_types
+):
+    command = FakeMessageCommand("Report Message")
+    target = FakeMessage()
+    target.id = 555
+    channel = CommandChannel(commands=[command], message=target)
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.send_message_command(
+        {"channel_id": "1", "message_id": "555",
+         "command_name": "Report Message"}
+    ))[0].text
+
+    assert command.called_with[0] is target
+    assert "Executed message command" in text
+
+
+@pytest.mark.asyncio
+async def test_send_message_command_ignores_other_kinds(
+    monkeypatch, _context_command_types
+):
+    """A user command with the same name must not satisfy a message command."""
+    channel = CommandChannel(
+        commands=[FakeUserCommand("Report")], message=FakeMessage()
+    )
+    monkeypatch.setattr(
+        interactions, "client", FakeCommandClient(channel=channel)
+    )
+
+    text = (await interactions.send_message_command(
+        {"channel_id": "1", "message_id": "555", "command_name": "Report"}
+    ))[0].text
+
+    assert "not found" in text
+
+
 # --- ephemeral support -------------------------------------------------------
 
 

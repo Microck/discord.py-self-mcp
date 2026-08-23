@@ -441,6 +441,243 @@ async def click_button(arguments: dict):
         return [TextContent(type="text", text=f"Error clicking button: {str(e)}")]
 
 
+async def _channel_for(channel_id: int):
+    """Resolve a messageable channel or return an error TextContent list."""
+    channel = client.get_channel(channel_id)
+    if not channel:
+        try:
+            channel = await client.fetch_channel(channel_id)
+        except discord.NotFound:
+            return None, [TextContent(type="text", text="Channel not found")]
+        except discord.Forbidden:
+            return None, [
+                TextContent(type="text", text="Access denied to channel")
+            ]
+    if not isinstance(channel, discord.abc.Messageable):
+        return None, [TextContent(type="text", text=NON_MESSAGEABLE_TEXT)]
+    return channel, None
+
+
+def _command_kind(command) -> str:
+    if isinstance(command, discord.UserCommand):
+        return "user"
+    if isinstance(command, discord.MessageCommand):
+        return "message"
+    return "slash"
+
+
+async def _find_context_command(channel, name, kind, application_id):
+    commands = await _collect_commands(channel.application_commands())
+    wanted = discord.UserCommand if kind == "user" else discord.MessageCommand
+    available = []
+    for command in commands:
+        if not isinstance(command, wanted):
+            continue
+        available.append(command.name)
+        if command.name != name:
+            continue
+        if application_id and str(
+            getattr(command, "application_id", "")
+        ) != str(application_id):
+            continue
+        return command, available
+    return None, available
+
+
+@registry.register(
+    name="list_application_commands",
+    description=(
+        "List the application commands available in a channel: slash "
+        "commands, plus the user and message commands that live in the "
+        "right-click 'Apps' menu. Use it to discover names for "
+        "send_slash_command, send_user_command and send_message_command."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel_id": {"type": "string"},
+            "kind": {
+                "type": "string",
+                "enum": ["slash", "user", "message", "all"],
+                "description": "Filter by command kind (default all)",
+            },
+        },
+        "required": ["channel_id"],
+    },
+)
+async def list_application_commands(arguments: dict):
+    try:
+        channel, error = await _channel_for(int(arguments["channel_id"]))
+        if error:
+            return error
+
+        kind = arguments.get("kind") or "all"
+        commands = await _collect_commands(channel.application_commands())
+
+        lines = []
+        for command in commands:
+            actual = _command_kind(command)
+            if kind != "all" and actual != kind:
+                continue
+            lines.append(
+                f"- {actual}: {command.name!r} "
+                f"application_id={getattr(command, 'application_id', None)}"
+            )
+
+        if not lines:
+            return [
+                TextContent(
+                    type="text",
+                    text=f"No {kind} commands available in this channel",
+                )
+            ]
+        return [TextContent(type="text", text="\n".join(lines))]
+
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error listing application commands: {type(e).__name__}: {e}",
+            )
+        ]
+
+
+@registry.register(
+    name="send_user_command",
+    description=(
+        "Invoke a user context-menu command (right-click a user -> Apps). "
+        "Find names with list_application_commands."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel_id": {"type": "string"},
+            "user_id": {
+                "type": "string",
+                "description": "The user the command targets",
+            },
+            "command_name": {"type": "string"},
+            "application_id": {
+                "type": "string",
+                "description": "Disambiguate when two apps share a name (optional)",
+            },
+        },
+        "required": ["channel_id", "user_id", "command_name"],
+    },
+)
+async def send_user_command(arguments: dict):
+    try:
+        channel, error = await _channel_for(int(arguments["channel_id"]))
+        if error:
+            return error
+
+        name = arguments["command_name"]
+        command, available = await _find_context_command(
+            channel, name, "user", arguments.get("application_id")
+        )
+        if command is None:
+            listing = ", ".join(sorted(available)) or "none"
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"User command {name!r} not found. "
+                        f"Available user commands: {listing}"
+                    ),
+                )
+            ]
+
+        user_id = int(arguments["user_id"])
+        user = client.get_user(user_id)
+        if user is None:
+            try:
+                user = await client.fetch_user(user_id)
+            except discord.NotFound:
+                return [TextContent(type="text", text="User not found")]
+
+        await apply_rate_limit("action")
+        await command(user, channel=channel)
+        return [
+            TextContent(
+                type="text",
+                text=f"Executed user command {name!r} on {user}",
+            )
+        ]
+
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error executing user command: {type(e).__name__}: {e}",
+            )
+        ]
+
+
+@registry.register(
+    name="send_message_command",
+    description=(
+        "Invoke a message context-menu command (right-click a message -> "
+        "Apps). Find names with list_application_commands."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "channel_id": {"type": "string"},
+            "message_id": {
+                "type": "string",
+                "description": "The message the command targets",
+            },
+            "command_name": {"type": "string"},
+            "application_id": {
+                "type": "string",
+                "description": "Disambiguate when two apps share a name (optional)",
+            },
+        },
+        "required": ["channel_id", "message_id", "command_name"],
+    },
+)
+async def send_message_command(arguments: dict):
+    try:
+        channel, error = await _channel_for(int(arguments["channel_id"]))
+        if error:
+            return error
+
+        name = arguments["command_name"]
+        command, available = await _find_context_command(
+            channel, name, "message", arguments.get("application_id")
+        )
+        if command is None:
+            listing = ", ".join(sorted(available)) or "none"
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"Message command {name!r} not found. "
+                        f"Available message commands: {listing}"
+                    ),
+                )
+            ]
+
+        message = await _resolve_message(channel, int(arguments["message_id"]))
+
+        await apply_rate_limit("action")
+        await command(message, channel=channel)
+        return [
+            TextContent(
+                type="text",
+                text=f"Executed message command {name!r} on {message.id}",
+            )
+        ]
+
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error executing message command: {type(e).__name__}: {e}",
+            )
+        ]
+
+
 @registry.register(
     name="list_ephemeral_messages",
     description=(

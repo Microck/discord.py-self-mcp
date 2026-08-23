@@ -187,7 +187,7 @@ powered by the robust `discord.py-self` library.
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
-| **interactions** | 5 | send_slash_command, click_button, select_menu, submit_modal, list_ephemeral_messages |
+| **interactions** | 8 | send_slash_command, click_button, select_menu, submit_modal, list_ephemeral_messages, list_application_commands, send_user_command, send_message_command |
 | **threads** | 5 | create_thread, send_thread_message, list_active_threads, read_thread_messages, archive_thread |
 | **members** | 5 | kick_member, ban_member, unban_member, add_role, remove_role |
 | **roles** | 6 | list_roles, get_role, create_role, edit_role, delete_role, reorder_roles |
@@ -265,6 +265,30 @@ are space-separated in `command_name` (e.g. `"config set"`). Example:
   "options": { "text": "stand up", "when": "in 10 minutes" }
 }
 ```
+
+### context menu commands
+
+`list_application_commands` shows everything a channel offers — slash commands
+plus the user and message commands that live in the right-click "Apps" menu:
+
+```json
+{ "channel_id": "123456789012345678", "kind": "all" }
+```
+
+invoke them with `send_user_command` (targets a user) or
+`send_message_command` (targets a message):
+
+```json
+{
+  "channel_id": "123456789012345678",
+  "user_id": "987654321098765432",
+  "command_name": "Report User"
+}
+```
+
+a name is only matched within its own kind, so a user command never satisfies
+`send_message_command`. pass `application_id` when two apps register the same
+name.
 
 ### modals
 
@@ -363,6 +387,7 @@ It returns attachment metadata for the target message and can stream image/file 
 | **select menus** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **submit modals** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **ephemeral replies** | ✅ | ✅ | ❌ | ❌ | ❌ |
+| **context menu commands** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **kick/ban** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **invites** | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **profile edit** | ✅ | ✅ | ❌ | ❌ | ❌ |
