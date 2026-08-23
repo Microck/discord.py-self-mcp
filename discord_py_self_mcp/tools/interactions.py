@@ -400,6 +400,122 @@ async def click_button(arguments: dict):
         return [TextContent(type="text", text=f"Error clicking button: {str(e)}")]
 
 
+def _modal_fields(modal) -> dict:
+    fields = {}
+    for row in modal.components or []:
+        for field in getattr(row, "children", []):
+            custom_id = getattr(field, "custom_id", None)
+            if custom_id is not None:
+                fields[custom_id] = field
+    return fields
+
+
+@registry.register(
+    name="submit_modal",
+    description=(
+        "Answer and submit a modal that Discord opened in response to an "
+        "earlier click_button or send_slash_command. Use the custom_id and "
+        "field names that click_button reported."
+    ),
+    input_schema={
+        "type": "object",
+        "properties": {
+            "custom_id": {
+                "type": "string",
+                "description": "Custom ID of the modal, as reported by click_button",
+            },
+            "values": {
+                "type": "object",
+                "description": (
+                    "Map of field custom_id to the string value to submit. "
+                    "Omit optional fields to leave them empty."
+                ),
+                "additionalProperties": {"type": "string"},
+            },
+        },
+        "required": ["custom_id", "values"],
+    },
+)
+async def submit_modal(arguments: dict):
+    try:
+        custom_id = arguments["custom_id"]
+        values = arguments.get("values")
+
+        if not isinstance(values, dict):
+            return [TextContent(type="text", text="values must be an object")]
+
+        modal = modal_store.take(custom_id)
+        if modal is None:
+            pending = ", ".join(sorted(modal_store.known_ids())) or "none"
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        f"No pending modal with custom_id {custom_id!r}. It may "
+                        f"have expired, or the button was never clicked. Click "
+                        f"the button again to reopen it. Pending modals: {pending}"
+                    ),
+                )
+            ]
+
+        fields = _modal_fields(modal)
+        unknown = sorted(set(values) - set(fields))
+
+        missing = sorted(
+            field_id
+            for field_id, field in fields.items()
+            if getattr(field, "required", False) and not values.get(field_id)
+        )
+        if missing:
+            # Put it back so the caller can retry without re-clicking.
+            modal_store.put(modal)
+            return [
+                TextContent(
+                    type="text",
+                    text=(
+                        "Missing required field(s): "
+                        f"{', '.join(missing)}. Modal was not submitted."
+                    ),
+                )
+            ]
+
+        for field_id, field in fields.items():
+            if field_id in values:
+                try:
+                    field.answer(values[field_id])
+                except ValueError as e:
+                    modal_store.put(modal)
+                    return [
+                        TextContent(
+                            type="text",
+                            text=(
+                                f"Invalid value for {field_id!r}: {e}. "
+                                "Modal was not submitted."
+                            ),
+                        )
+                    ]
+
+        await apply_rate_limit("action")
+        await modal.submit()
+
+        msg = f"Modal {custom_id!r} submitted"
+        if unknown:
+            valid = ", ".join(sorted(fields)) or "none"
+            msg += (
+                f". Ignored unknown field(s) {', '.join(unknown)}; "
+                f"valid fields: {valid}"
+            )
+        return [TextContent(type="text", text=msg)]
+
+    except Exception as e:
+        return [
+            TextContent(
+                type="text",
+                text=f"Error submitting modal: {type(e).__name__}: {str(e)}",
+            )
+        ]
+
+
 @registry.register(
     name="select_menu",
     description="Select an option in a menu",

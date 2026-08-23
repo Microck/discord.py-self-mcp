@@ -424,3 +424,122 @@ async def test_click_button_url_button_is_unchanged(monkeypatch):
     )
 
     assert result[0].text == "Button is a URL: https://example.com"
+
+
+# --- submit_modal ------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clean_modal_store():
+    modal_store.clear()
+    yield
+    modal_store.clear()
+
+
+def _stash(modal):
+    modal_store.put(modal)
+    return modal
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_answers_and_submits():
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(FakeModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC",
+         "values": {"profile_username": "erickong1108"}}
+    )
+
+    assert field.value == "erickong1108"
+    assert modal.submitted
+    assert "submitted" in result[0].text.lower()
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_consumes_the_entry():
+    modal = _stash(FakeModal(components=[
+        FakeActionRow(FakeTextInput("profile_username", required=False))
+    ]))
+    await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+    assert modal_store.take("auth_profile:ABC") is None
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_unknown_id_explains():
+    _stash(FakeModal(custom_id="other"))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:GONE", "values": {}}
+    )
+
+    text = result[0].text
+    assert "auth_profile:GONE" in text
+    assert "other" in text
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_missing_required_field_is_rejected():
+    field = FakeTextInput("profile_username", required=True)
+    modal = _stash(FakeModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+
+    assert "profile_username" in result[0].text
+    assert not modal.submitted
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_missing_required_field_keeps_the_modal():
+    _stash(FakeModal(components=[
+        FakeActionRow(FakeTextInput("profile_username", required=True))
+    ]))
+    await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {}}
+    )
+    assert modal_store.take("auth_profile:ABC") is not None
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_reports_unknown_keys():
+    field = FakeTextInput("profile_username", required=True)
+    _stash(FakeModal(components=[FakeActionRow(field)]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC",
+         "values": {"profile_username": "ok", "typo_field": "x"}}
+    )
+
+    assert "typo_field" in result[0].text
+    assert field.value == "ok"
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_length_violation_is_reported():
+    class StrictInput(FakeTextInput):
+        def answer(self, value, /):
+            raise ValueError("value must be at least 3 characters long")
+
+    modal = _stash(FakeModal(components=[
+        FakeActionRow(StrictInput("profile_username", required=True))
+    ]))
+
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": {"profile_username": "a"}}
+    )
+
+    assert "at least 3 characters" in result[0].text
+    assert not modal.submitted
+
+
+@pytest.mark.asyncio
+async def test_submit_modal_values_must_be_an_object():
+    _stash(FakeModal())
+    result = await interactions.submit_modal(
+        {"custom_id": "auth_profile:ABC", "values": "nope"}
+    )
+    assert "values must be an object" in result[0].text
