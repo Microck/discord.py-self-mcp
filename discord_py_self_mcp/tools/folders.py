@@ -438,6 +438,9 @@ async def move_server_to_folder(arguments: dict):
         )
         settings = await _get_settings()
         destination = _find_folder(settings, folder_id) if folder_id is not None else None
+        if destination is not None and guild_id in destination.guild_ids:
+            log_to_stderr(f"[FOLDERS] Guild={guild_id} already belongs to folder {folder_id}")
+            return _text(f"Server {guild_id} is already in folder {folder_id}")
         _remove_guild_ids(settings, {guild_id})
         if destination is not None:
             # Removing entries rebuilds the protobuf container, so resolve the

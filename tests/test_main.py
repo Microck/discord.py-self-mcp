@@ -48,3 +48,14 @@ def test_create_streamable_http_app_exposes_mcp_route():
     http_app = main.create_streamable_http_app()
 
     assert [route.path for route in http_app.routes] == ["/mcp"]
+    security = http_app.routes[0].endpoint.session_manager.security_settings
+    assert security.enable_dns_rebinding_protection is True
+    assert security.allowed_hosts == ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+
+
+def test_streamable_http_only_allows_loopback_hosts():
+    assert main._is_loopback_host("127.0.0.1") is True
+    assert main._is_loopback_host("::1") is True
+    assert main._is_loopback_host("localhost") is True
+    assert main._is_loopback_host("0.0.0.0") is False
+    assert main._is_loopback_host("192.168.1.10") is False

@@ -167,6 +167,39 @@ async def test_sample_server_content_prefers_general_and_skips_ticket_channels(m
 
 
 @pytest.mark.asyncio
+async def test_sample_server_content_rate_limits_each_selected_channel(monkeypatch):
+    guild = FakeGuild(
+        1,
+        "Example",
+        [
+            FakeChannel(10, "announcements", messages=[FakeMessage(1, "News")]),
+            FakeChannel(11, "general", messages=[FakeMessage(2, "Chat")]),
+        ],
+    )
+    fake_client = FakeClient([guild])
+    rate_limit_calls = []
+    monkeypatch.setattr(overview, "client", fake_client)
+
+    async def rate_limit(action_type):
+        rate_limit_calls.append(action_type)
+
+    monkeypatch.setattr(overview, "apply_rate_limit", rate_limit)
+    await overview.sample_server_content(
+        {"guild_ids": ["1"], "messages_per_guild": 2, "sample_channels_per_guild": 2}
+    )
+
+    assert rate_limit_calls == ["action", "action"]
+
+
+def test_overview_requires_batches_when_the_default_guild_set_is_too_large(monkeypatch):
+    guilds = [FakeGuild(index, f"Guild {index}", []) for index in range(1, 102)]
+    monkeypatch.setattr(overview, "client", FakeClient(guilds))
+
+    with pytest.raises(ValueError, match="provide guild_ids in batches"):
+        overview._resolve_guilds({})
+
+
+@pytest.mark.asyncio
 async def test_list_channels_supports_bulk_summary_mode(monkeypatch):
     guild = FakeGuild(1, "Example", [FakeChannel(10, "general", category="Community")])
     fake_client = FakeClient([guild])

@@ -119,7 +119,12 @@ def _channel_summary(guild, *, include_repetitive: bool = False) -> dict[str, An
 def _resolve_guilds(arguments: dict) -> list:
     raw_guild_ids = arguments.get("guild_ids")
     if raw_guild_ids is None:
-        return list(client.guilds)
+        guilds = list(client.guilds)
+        if len(guilds) > MAX_GUILDS_PER_REQUEST:
+            raise ValueError(
+                f"This account has more than {MAX_GUILDS_PER_REQUEST} servers; provide guild_ids in batches"
+            )
+        return guilds
     if not isinstance(raw_guild_ids, list) or not raw_guild_ids:
         raise ValueError("guild_ids must be a non-empty array of server IDs")
     if len(raw_guild_ids) > MAX_GUILDS_PER_REQUEST:
@@ -197,6 +202,7 @@ async def _sample_guild(guild, messages_per_guild: int, sample_channels: int) ->
     samples: list[dict[str, Any]] = []
     for channel in selected:
         try:
+            await apply_rate_limit("action")
             async for message in channel.history(limit=per_channel):
                 samples.append(_sample_message(channel, message))
                 if len(samples) >= messages_per_guild:
@@ -229,8 +235,6 @@ async def _build_overviews(arguments: dict, *, force_samples: bool = False) -> d
         all_folders = _serialize_folders(settings)
         folder_by_guild = _folder_index(settings)
 
-    if include_samples:
-        await apply_rate_limit("action")
     log_to_stderr(
         f"[OVERVIEW] Building overview for {len(guilds)} server(s); samples={include_samples}"
     )

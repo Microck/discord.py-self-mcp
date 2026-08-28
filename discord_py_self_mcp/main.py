@@ -1,6 +1,7 @@
 import asyncio
 import argparse
 from contextlib import asynccontextmanager
+import ipaddress
 import os
 import sys
 
@@ -58,10 +59,20 @@ def create_streamable_http_app():
     """Build a localhost-only Streamable HTTP MCP endpoint at /mcp."""
     from mcp.server.fastmcp.server import StreamableHTTPASGIApp
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    from mcp.server.transport_security import TransportSecuritySettings
     from starlette.applications import Starlette
     from starlette.routing import Route
 
-    session_manager = StreamableHTTPSessionManager(app=app)
+    # This server controls a user account, so defend the local endpoint against
+    # DNS rebinding even when it is placed behind a local proxy or tunnel.
+    security_settings = TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
+        allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
+    )
+    session_manager = StreamableHTTPSessionManager(
+        app=app, security_settings=security_settings
+    )
     http_app = StreamableHTTPASGIApp(session_manager)
 
     @asynccontextmanager
@@ -73,9 +84,23 @@ def create_streamable_http_app():
     return Starlette(routes=[Route("/mcp", endpoint=http_app)], lifespan=lifespan)
 
 
+def _is_loopback_host(host: str) -> bool:
+    normalized = host.strip().strip("[]")
+    if normalized.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
 async def run_streamable_http(host: str, port: int) -> None:
     import uvicorn
 
+    if not _is_loopback_host(host):
+        raise ValueError(
+            "streamable-http host must be a loopback address; configure authentication before exposing it remotely"
+        )
     server = uvicorn.Server(
         uvicorn.Config(
             create_streamable_http_app(), host=host, port=port, log_level="info"
@@ -96,6 +121,10 @@ def main():
     options = parser.parse_args()
 
     if options.transport == "streamable-http":
+        if not _is_loopback_host(options.host):
+            parser.error(
+                "--host must be a loopback address for streamable-http; remote binding requires endpoint authentication"
+            )
         asyncio.run(run_streamable_http(options.host, options.port))
     else:
         asyncio.run(run_stdio())

@@ -148,6 +148,21 @@ async def test_move_server_without_folder_makes_it_ungrouped(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_move_server_already_in_single_member_destination_is_idempotent(monkeypatch):
+    settings = PreloadedUserSettings()
+    folder = settings.guild_folders.folders.add()
+    folder.guild_ids.append(1)
+    folder.id.value = 700
+    fake_client = FakeClient(settings)
+    monkeypatch.setattr(folders, "client", fake_client)
+
+    result = await folders.move_server_to_folder({"guild_id": "1", "folder_id": "700"})
+
+    assert result[0].text == "Server 1 is already in folder 700"
+    assert [call[0].method for call in fake_client.http.calls] == ["GET"]
+
+
+@pytest.mark.asyncio
 async def test_rename_server_folder(monkeypatch):
     fake_client = FakeClient(_settings())
     monkeypatch.setattr(folders, "client", fake_client)
