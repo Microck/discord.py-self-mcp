@@ -101,6 +101,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Features
+
+- Add read-only server-sidebar analysis, compact bulk channel listings, and representative message sampling for faster server classification.
+- Add atomic server-folder layout application with a dry-run plan and simplified named-folder reordering.
+
+### Safety
+
+- Preserve unlisted servers during folder-layout application and use Discord's settings data version to reject stale writes.
+- Log folder and sampling operations without recording message content, tokens, or other secrets.
+
 ## 1.2.1
 
 - Discrawl MCP tools now prefer a sibling `../discrawl-self/bin/discrawl` build before falling back to `discrawl` on `PATH`.
