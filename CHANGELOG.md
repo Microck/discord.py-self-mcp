@@ -107,6 +107,7 @@ All notable changes to this project will be documented in this file.
 
 - Add read-only server-sidebar analysis, compact bulk channel listings, and representative message sampling for faster server classification.
 - Add atomic server-folder layout application with a dry-run plan and simplified named-folder reordering.
+- Add an optional localhost-only Streamable HTTP transport while retaining the default stdio transport.
 
 ### Safety
 

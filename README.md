@@ -116,7 +116,7 @@ python3 -m discord_py_self_mcp.setup
 
 ### manual configuration
 
-because this server uses `stdio`, you configure it as a local command and pass the token via `env` (not `url`/`headers`).
+for the default `stdio` transport, configure the server as a local command and pass the token via `env` (not `url`/`headers`).
 
 examples:
 - `mcp.example.json`
@@ -171,6 +171,20 @@ examples:
 ```
 
 > if your client does not expand `${DISCORD_TOKEN}`, replace it with the literal token value.
+
+### streamable HTTP transport
+
+The default transport is stdio. For clients or local services that need a
+persistent endpoint, start the same MCP server with Streamable HTTP instead:
+
+```bash
+python3 -m discord_py_self_mcp.main --transport streamable-http --host 127.0.0.1 --port 7781
+```
+
+This exposes the MCP endpoint at `http://127.0.0.1:7781/mcp`. The listener is
+localhost-only by default; place an authenticated reverse proxy or tunnel in
+front of it if remote access is required. `MCP_TRANSPORT`, `MCP_HOST`, and
+`MCP_PORT` provide equivalent environment-based configuration.
 
 ---
 
