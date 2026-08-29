@@ -1,3 +1,5 @@
+import json
+
 import discord
 import pytest
 
@@ -19,6 +21,8 @@ class FakeDM:
     def __init__(self, channel_id, recipient):
         self.id = channel_id
         self.recipient = recipient
+        self.last_message_id = None
+        self.read_state = None
 
 
 class FakeGroup:
@@ -28,11 +32,22 @@ class FakeGroup:
         self.id = channel_id
         self.recipients = recipients
         self.name = name
+        self.last_message_id = None
+        self.read_state = None
+
+
+class FakeReadState:
+    def __init__(self, last_acked_id, badge_count=0):
+        self.last_acked_id = last_acked_id
+        self.badge_count = badge_count
 
 
 class FakeClient:
     def __init__(self, private_channels):
         self.private_channels = private_channels
+
+    def is_ready(self):
+        return True
 
 
 @pytest.mark.asyncio
@@ -110,3 +125,25 @@ async def test_global_name_display(monkeypatch):
     result = await dms.list_dm_channels({})
     # format_user_display -> "Owl (@nightowl)"
     assert "Owl (@nightowl)" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_unread_dms_returns_unread_direct_and_group_dms(monkeypatch):
+    carol = FakeUser(1001, "carol")
+    alice = FakeUser(2001, "alice")
+    unread_dm = FakeDM(500, carol)
+    unread_dm.last_message_id = 120
+    unread_dm.read_state = FakeReadState(100, badge_count=1)
+    read_dm = FakeDM(501, carol)
+    read_dm.last_message_id = 100
+    read_dm.read_state = FakeReadState(100)
+    unread_group = FakeGroup(600, [alice], name="planning")
+    unread_group.last_message_id = 220
+    unread_group.read_state = FakeReadState(200)
+    monkeypatch.setattr(dms, "client", FakeClient([unread_dm, read_dm, unread_group]))
+
+    result = await dms.list_unread_dms({})
+
+    payload = json.loads(result[0].text)
+    assert [row["channel_id"] for row in payload["unread_dms"]] == ["500", "600"]
+    assert payload["unread_dms"][0]["mention_count"] == 1
