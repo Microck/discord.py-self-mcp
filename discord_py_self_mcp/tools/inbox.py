@@ -21,6 +21,8 @@ def _text(value: str) -> list[TextContent]:
 
 
 def _parse_limit(value: object) -> int:
+    if isinstance(value, bool):
+        raise ValueError("limit must be an integer")
     try:
         limit = int(value)
     except (TypeError, ValueError) as exc:
@@ -160,7 +162,11 @@ async def mark_message_read(arguments: dict):
         read_state = getattr(channel, "read_state", None)
         if read_state is None or not callable(getattr(read_state, "ack", None)):
             return _text("This channel's read state is unavailable")
+        fetch_message = getattr(channel, "fetch_message", None)
+        if not callable(fetch_message):
+            return _text("This channel cannot verify the selected message")
         await apply_rate_limit("action")
+        await fetch_message(message_id)
         await read_state.ack(message_id)
         return _text(f"Marked messages through {message_id} in channel {channel_id} as read.")
     except Exception as exc:

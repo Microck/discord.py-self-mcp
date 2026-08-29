@@ -8,6 +8,21 @@ from ..tool_utils import NOT_READY_TEXT, format_user_display
 from .registry import registry
 
 
+MAX_UNREAD_DMS = 100
+
+
+def _parse_unread_limit(value: object) -> int:
+    if isinstance(value, bool):
+        raise ValueError("limit must be an integer")
+    try:
+        limit = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("limit must be an integer") from exc
+    if not 1 <= limit <= MAX_UNREAD_DMS:
+        raise ValueError(f"limit must be between 1 and {MAX_UNREAD_DMS}")
+    return limit
+
+
 def _is_group(channel) -> bool:
     return getattr(channel, "type", None) == discord.ChannelType.group
 
@@ -112,6 +127,13 @@ async def list_dm_channels(arguments: dict):
     input_schema={
         "type": "object",
         "properties": {
+            "limit": {
+                "type": "integer",
+                "default": 50,
+                "minimum": 1,
+                "maximum": MAX_UNREAD_DMS,
+                "description": "Maximum unread DM channels to return.",
+            },
             "include_groups": {"type": "boolean", "default": True},
             "name_contains": {"type": "string"},
         },
@@ -121,6 +143,7 @@ async def list_unread_dms(arguments: dict):
     if not client.is_ready():
         return [TextContent(type="text", text=NOT_READY_TEXT)]
     try:
+        limit = _parse_unread_limit(arguments.get("limit", 50))
         include_groups = arguments.get("include_groups", True)
         if not isinstance(include_groups, bool):
             raise ValueError("include_groups must be a boolean")
@@ -163,6 +186,8 @@ async def list_unread_dms(arguments: dict):
                 "mention_count": int(getattr(read_state, "badge_count", 0)),
             })
             unread_channels.append(row)
+            if len(unread_channels) >= limit:
+                break
         if not unread_channels:
             return [TextContent(type="text", text="No unread DMs found.")]
         return [TextContent(type="text", text=json.dumps({"unread_dms": unread_channels}, indent=2))]

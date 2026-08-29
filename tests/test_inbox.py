@@ -27,6 +27,11 @@ class FakeChannel:
         self.name = "general"
         self.guild = guild
         self.read_state = FakeReadState(last_acked_id)
+        self.fetched_message_ids = []
+
+    async def fetch_message(self, message_id):
+        self.fetched_message_ids.append(message_id)
+        return object()
 
 
 class FakeMessage:
@@ -100,4 +105,14 @@ async def test_mark_message_read_acknowledges_only_through_selected_message(monk
     result = await inbox.mark_message_read({"channel_id": "20", "message_id": "35"})
 
     assert channel.read_state.acknowledged == [35]
+    assert channel.fetched_message_ids == [35]
     assert "through 35" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_list_pings_rejects_a_boolean_limit(monkeypatch):
+    monkeypatch.setattr(inbox, "client", FakeClient())
+
+    result = await inbox.list_pings({"limit": True})
+
+    assert "limit must be an integer" in result[0].text

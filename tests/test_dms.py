@@ -147,3 +147,21 @@ async def test_list_unread_dms_returns_unread_direct_and_group_dms(monkeypatch):
     payload = json.loads(result[0].text)
     assert [row["channel_id"] for row in payload["unread_dms"]] == ["500", "600"]
     assert payload["unread_dms"][0]["mention_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_unread_dms_respects_limit_and_rejects_booleans(monkeypatch):
+    carol = FakeUser(1001, "carol")
+    first = FakeDM(500, carol)
+    first.last_message_id = 120
+    first.read_state = FakeReadState(100)
+    second = FakeDM(501, carol)
+    second.last_message_id = 120
+    second.read_state = FakeReadState(100)
+    monkeypatch.setattr(dms, "client", FakeClient([first, second]))
+
+    result = await dms.list_unread_dms({"limit": 1})
+    assert [row["channel_id"] for row in json.loads(result[0].text)["unread_dms"]] == ["500"]
+
+    invalid = await dms.list_unread_dms({"limit": True})
+    assert "limit must be an integer" in invalid[0].text
