@@ -1,4 +1,5 @@
 import pytest
+from mcp.server.transport_security import TransportSecurityMiddleware
 
 from discord_py_self_mcp import main
 
@@ -50,7 +51,19 @@ def test_create_streamable_http_app_exposes_mcp_route():
     assert [route.path for route in http_app.routes] == ["/mcp"]
     security = http_app.routes[0].endpoint.session_manager.security_settings
     assert security.enable_dns_rebinding_protection is True
-    assert security.allowed_hosts == ["127.0.0.1:*", "localhost:*", "[::1]:*"]
+    assert security.allowed_hosts == ["127.0.0.1", "127.0.0.1:*"]
+    assert security.allowed_origins == ["http://127.0.0.1", "http://127.0.0.1:*"]
+
+
+def test_streamable_http_security_allowlist_tracks_selected_loopback_host():
+    http_app = main.create_streamable_http_app("127.0.0.2")
+
+    security = http_app.routes[0].endpoint.session_manager.security_settings
+    assert security.allowed_hosts == ["127.0.0.2", "127.0.0.2:*"]
+    assert security.allowed_origins == ["http://127.0.0.2", "http://127.0.0.2:*"]
+    middleware = TransportSecurityMiddleware(security)
+    assert middleware._validate_host("127.0.0.2:7781") is True
+    assert middleware._validate_host("127.0.0.1:7781") is False
 
 
 def test_streamable_http_only_allows_loopback_hosts():

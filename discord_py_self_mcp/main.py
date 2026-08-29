@@ -55,20 +55,36 @@ async def run_app() -> None:
     await run_stdio()
 
 
-def create_streamable_http_app():
-    """Build a localhost-only Streamable HTTP MCP endpoint at /mcp."""
+def _http_security_allowlist(host: str) -> tuple[list[str], list[str]]:
+    """Return Host and Origin values accepted for one loopback listener."""
+    normalized = host.strip().strip("[]")
+    allowed_host = f"[{normalized}]" if ":" in normalized else normalized
+    return (
+        [allowed_host, f"{allowed_host}:*"],
+        [f"http://{allowed_host}", f"http://{allowed_host}:*"],
+    )
+
+
+def create_streamable_http_app(host: str = "127.0.0.1"):
+    """Build a Streamable HTTP MCP endpoint restricted to one loopback host."""
     from mcp.server.fastmcp.server import StreamableHTTPASGIApp
     from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
     from mcp.server.transport_security import TransportSecuritySettings
     from starlette.applications import Starlette
     from starlette.routing import Route
 
+    if not _is_loopback_host(host):
+        raise ValueError(
+            "streamable-http host must be a loopback address; configure authentication before exposing it remotely"
+        )
+
     # This server controls a user account, so defend the local endpoint against
     # DNS rebinding even when it is placed behind a local proxy or tunnel.
+    allowed_hosts, allowed_origins = _http_security_allowlist(host)
     security_settings = TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
-        allowed_hosts=["127.0.0.1:*", "localhost:*", "[::1]:*"],
-        allowed_origins=["http://127.0.0.1:*", "http://localhost:*", "http://[::1]:*"],
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
     )
     session_manager = StreamableHTTPSessionManager(
         app=app, security_settings=security_settings
@@ -103,7 +119,7 @@ async def run_streamable_http(host: str, port: int) -> None:
         )
     server = uvicorn.Server(
         uvicorn.Config(
-            create_streamable_http_app(), host=host, port=port, log_level="info"
+            create_streamable_http_app(host), host=host, port=port, log_level="info"
         )
     )
     await server.serve()
