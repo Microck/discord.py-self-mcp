@@ -197,7 +197,8 @@ powered by the robust `discord.py-self` library.
 | **system** | 2 | get_user_info, list_guilds |
 | **messages** | 6 | send_message, read_messages, search_messages, edit_message, delete_message, get_message_attachments |
 | **channels** | 3 | create_channel, delete_channel, list_channels (bulk and compact summary modes) |
-| **dms** | 1 | list_dm_channels |
+| **dms** | 2 | list_dm_channels, list_unread_dms |
+| **pings** | 2 | list_pings, mark_message_read |
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
 | **presence** | 2 | set_status, set_activity |
