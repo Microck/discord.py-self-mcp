@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.6.0...v1.7.0) (2026-09-07)
+
+
+### Features
+
+* add server sidebar analysis and streamable HTTP ([#47](https://github.com/Microck/discord.py-self-mcp/issues/47)) ([cf12064](https://github.com/Microck/discord.py-self-mcp/commit/cf1206441a0e34ffbe98a9f5ad36b4ed88a14090))
+
 # [1.6.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.5.1...v1.6.0) (2026-08-23)
 
 
