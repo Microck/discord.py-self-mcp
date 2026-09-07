@@ -116,7 +116,7 @@ python3 -m discord_py_self_mcp.setup
 
 ### manual configuration
 
-because this server uses `stdio`, you configure it as a local command and pass the token via `env` (not `url`/`headers`).
+for the default `stdio` transport, configure the server as a local command and pass the token via `env` (not `url`/`headers`).
 
 examples:
 - `mcp.example.json`
@@ -172,6 +172,20 @@ examples:
 
 > if your client does not expand `${DISCORD_TOKEN}`, replace it with the literal token value.
 
+### streamable HTTP transport
+
+The default transport is stdio. For clients or local services that need a
+persistent endpoint, start the same MCP server with Streamable HTTP instead:
+
+```bash
+python3 -m discord_py_self_mcp.main --transport streamable-http --host 127.0.0.1 --port 7781
+```
+
+This exposes the MCP endpoint at `http://127.0.0.1:7781/mcp`. The listener is
+localhost-only by default; place an authenticated reverse proxy or tunnel in
+front of it if remote access is required. `MCP_TRANSPORT`, `MCP_HOST`, and
+`MCP_PORT` provide equivalent environment-based configuration.
+
 ---
 
 ### features
@@ -182,7 +196,7 @@ powered by the robust `discord.py-self` library.
 |----------|-------|-------------|
 | **system** | 2 | get_user_info, list_guilds |
 | **messages** | 6 | send_message, read_messages, search_messages, edit_message, delete_message, get_message_attachments |
-| **channels** | 3 | create_channel, delete_channel, list_channels |
+| **channels** | 3 | create_channel, delete_channel, list_channels (bulk and compact summary modes) |
 | **dms** | 1 | list_dm_channels |
 | **voice** | 2 | join_voice_channel, leave_voice_channel |
 | **relationships** | 4 | list_friends, send_friend_request, add_friend, remove_friend |
@@ -194,6 +208,8 @@ powered by the robust `discord.py-self` library.
 | **permissions** | 7 | set_role_permissions, get_channel_permissions, set_channel_permissions, patch_channel_permissions, remove_channel_permissions, set_category_permissions, inspect_effective_permissions |
 | **invites** | 3 | create_invite, list_invites, delete_invite |
 | **profile** | 1 | edit_profile |
+| **server folders** | 6 | list_server_folders, create_server_folder, move_server_to_folder, rename_server_folder, reorder_server_folders, apply_server_folder_layout |
+| **server discovery** | 3 | get_server_overviews, sample_server_content, analyze_server_sidebar |
 | **reactions** | 2 | add_reaction, remove_reaction |
 | **discrawl** | 7 | run_discrawl, discrawl_doctor, discrawl_status, discrawl_sync, discrawl_search, discrawl_messages, discrawl_mentions |
 
@@ -246,6 +262,27 @@ discover a `channel_id` instead of needing to know it in advance. Each row is
 args: `include_groups` (default `true`) and `name_contains` (case-insensitive
 filter on recipient name/handle), e.g. find the DM with a person by name and
 feed the id straight into `read_messages` / `send_message`.
+
+### server discovery and folders
+
+`analyze_server_sidebar` is the recommended first step when organizing a large
+server list. It returns the current folder layout alongside each server's
+description, member count, permissions, and a compact channel summary. Set
+`include_recent_messages: true` to sample high-signal channels such as
+announcements, general, FAQ, and updates; likely ticket and log channels are
+skipped by default.
+
+Use `get_server_overviews` for selected servers or `sample_server_content` when
+you only need message evidence. `list_channels` also accepts `guild_ids` and a
+`mode: "summary"` option, which collapses repeated ticket-style channels unless
+`include_repetitive` is set.
+
+For writes, use `apply_server_folder_layout` to create, rename, recolor, and
+move several folders in one settings update. First call it with `dry_run: true`;
+the response lists each creation, rename, recolor, move, and empty folder that
+would be removed. Servers omitted from the request stay in their current place.
+The service logs each settings write by operation count and data version, never
+message content or account secrets.
 
 ### slash commands
 

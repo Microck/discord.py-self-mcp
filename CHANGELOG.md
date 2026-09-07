@@ -101,6 +101,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Features
+
+- Add read-only server-sidebar analysis, compact bulk channel listings, and representative message sampling for faster server classification.
+- Add atomic server-folder layout application with a dry-run plan and simplified named-folder reordering.
+- Add an optional localhost-only Streamable HTTP transport while retaining the default stdio transport.
+
+### Safety
+
+- Preserve unlisted servers during folder-layout application and use Discord's settings data version to reject stale writes.
+- Log folder and sampling operations without recording message content, tokens, or other secrets.
+- Match Streamable HTTP Host and Origin validation to the selected loopback listener, including alternate loopback addresses.
+
+### Development
+
+- Add a GitHub Actions check that compiles the source, runs the tests, and builds a wheel for pull requests.
+
 ## 1.2.1
 
 - Discrawl MCP tools now prefer a sibling `../discrawl-self/bin/discrawl` build before falling back to `discrawl` on `PATH`.
