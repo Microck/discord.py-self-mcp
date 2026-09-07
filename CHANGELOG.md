@@ -1,3 +1,10 @@
+# [1.8.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.7.0...v1.8.0) (2026-09-07)
+
+
+### Features
+
+* add Discord pings and unread DM tools ([#48](https://github.com/Microck/discord.py-self-mcp/issues/48)) ([cbd446f](https://github.com/Microck/discord.py-self-mcp/commit/cbd446fcdaa3618ac7d58a01e78ba5b4261821ee))
+
 # [1.7.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.6.0...v1.7.0) (2026-09-07)
 
 
