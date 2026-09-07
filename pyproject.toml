@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "discord-py-self-mcp"
-  version = "1.6.0"
+  version = "1.7.0"
 authors = [
   { name="Microck", email="your.email@example.com" },
 ]
@@ -13,6 +13,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "discord.py-self[voice]==2.1.0",
+    "discord-protos==0.0.2",
     "mcp<2",
     "python-dotenv",
     "playwright",

@@ -1,3 +1,10 @@
+# [1.7.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.6.0...v1.7.0) (2026-09-07)
+
+
+### Features
+
+* add server sidebar analysis and streamable HTTP ([#47](https://github.com/Microck/discord.py-self-mcp/issues/47)) ([cf12064](https://github.com/Microck/discord.py-self-mcp/commit/cf1206441a0e34ffbe98a9f5ad36b4ed88a14090))
+
 # [1.6.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.5.1...v1.6.0) (2026-08-23)
 
 
@@ -100,6 +107,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## Unreleased
+
+### Features
+
+- Add read-only server-sidebar analysis, compact bulk channel listings, and representative message sampling for faster server classification.
+- Add atomic server-folder layout application with a dry-run plan and simplified named-folder reordering.
+- Add an optional localhost-only Streamable HTTP transport while retaining the default stdio transport.
+
+### Safety
+
+- Preserve unlisted servers during folder-layout application and use Discord's settings data version to reject stale writes.
+- Log folder and sampling operations without recording message content, tokens, or other secrets.
+- Match Streamable HTTP Host and Origin validation to the selected loopback listener, including alternate loopback addresses.
+
+### Development
+
+- Add a GitHub Actions check that compiles the source, runs the tests, and builds a wheel for pull requests.
 
 ## 1.2.1
 
