@@ -86,7 +86,6 @@ async def delete_channel(arguments: dict):
                 "description": "In summary mode, include every repetitive channel instead of collapsed patterns",
             },
         },
-        "anyOf": [{"required": ["guild_id"]}, {"required": ["guild_ids"]}],
     },
 )
 async def list_channels(arguments: dict):

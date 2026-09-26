@@ -571,7 +571,6 @@ async def apply_server_folder_layout(arguments: dict):
                 "description": "All entries from list_server_folders, in desired sidebar order",
             },
         },
-        "anyOf": [{"required": ["folder_ids"]}, {"required": ["folder_order"]}],
     },
 )
 async def reorder_server_folders(arguments: dict):
