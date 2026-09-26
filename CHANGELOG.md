@@ -1,3 +1,10 @@
+## [1.8.1](https://github.com/Microck/discord.py-self-mcp/compare/v1.8.0...v1.8.1) (2026-09-26)
+
+
+### Bug Fixes
+
+* remove strict-validator-incompatible tool schema branches ([#50](https://github.com/Microck/discord.py-self-mcp/issues/50)) ([2a7db31](https://github.com/Microck/discord.py-self-mcp/commit/2a7db3143bff0aced5d3d081704cd72b7e23ead6))
+
 # [1.8.0](https://github.com/Microck/discord.py-self-mcp/compare/v1.7.0...v1.8.0) (2026-09-07)
 
 
