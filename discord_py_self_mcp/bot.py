@@ -5,7 +5,6 @@ import sys
 from typing import Dict, Any
 from google.protobuf import json_format
 from dotenv import load_dotenv
-from discord_py_self_mcp.captcha.solver import HCaptchaSolver
 from discord_py_self_mcp.rate_limiter import (
     RateLimiter,
 )
@@ -99,6 +98,10 @@ async def solve_captcha() -> str:
         )
 
     if captcha_solver is None:
+        # Imported lazily: the solver pulls in hcaptcha_challenger, numpy, OpenCV
+        # and SciPy, which cost hundreds of MB per process when loaded at startup.
+        from discord_py_self_mcp.captcha.solver import HCaptchaSolver
+
         captcha_solver = HCaptchaSolver(
             sitekey="a9b5fb07-92ff-493f-86fe-352a2803b3df",
             host="discord.com",
