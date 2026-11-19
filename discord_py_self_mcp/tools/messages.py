@@ -13,13 +13,17 @@ from ..tool_utils import (
     normalize_history_limit,
     validate_message_content,
 )
+from ..file_utils import UploadError, format_sent_summary, send_with_files
 
 MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
 
 
 @registry.register(
     name="send_message",
-    description="Send a message to a channel",
+    description=(
+        "Send a message to a channel, optionally attaching local files. "
+        "Content may be empty when at least one file is attached."
+    ),
     input_schema={
         "type": "object",
         "properties": {
@@ -28,6 +32,13 @@ MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
             "reply_to_message_id": {
                 "type": "string",
                 "description": "Optional message ID to reply to in this channel",
+            },
+            "file_paths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Absolute paths of local files to attach to the message"
+                ),
             },
         },
         "required": ["channel_id", "content"],
@@ -41,6 +52,7 @@ async def send_message(arguments: dict):
         content_error = validate_message_content(content)
         if content_error:
             return [TextContent(type="text", text=content_error)]
+
         channel = client.get_channel(channel_id)
         if not channel:
             try:
@@ -57,14 +69,20 @@ async def send_message(arguments: dict):
 
         send_kwargs = build_reply_kwargs(reply_to_message_id, channel_id)
 
-        await apply_rate_limit("message")
-        message = await channel.send(content, **send_kwargs)
+        message, files = await send_with_files(
+            channel, content, arguments.get("file_paths"), send_kwargs, apply_rate_limit
+        )
         return [
             TextContent(
                 type="text",
-                text=f"Message sent to {channel_id} (message_id={message.id})",
+                text=(
+                    f"Message sent to {channel_id} (message_id={message.id})"
+                    f"{format_sent_summary(message, files)}"
+                ),
             )
         ]
+    except UploadError as exc:
+        return [TextContent(type="text", text=str(exc))]
     except Exception as e:
         return [TextContent(type="text", text=f"Error sending message: {str(e)}")]
 

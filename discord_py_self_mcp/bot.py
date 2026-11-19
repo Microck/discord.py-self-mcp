@@ -4,7 +4,9 @@ import importlib
 import sys
 from typing import Dict, Any
 from google.protobuf import json_format
-from dotenv import load_dotenv
+from pathlib import Path
+from dotenv import find_dotenv
+from discord_py_self_mcp.file_utils import load_runtime_dotenv
 from discord_py_self_mcp.captcha.solver import HCaptchaSolver
 from discord_py_self_mcp.rate_limiter import (
     RateLimiter,
@@ -12,7 +14,9 @@ from discord_py_self_mcp.rate_limiter import (
 from discord_py_self_mcp.logging_utils import log_to_stderr
 from discord_py_self_mcp import modal_store
 
-load_dotenv()
+_env_path = find_dotenv()
+if _env_path:
+    load_runtime_dotenv(Path(_env_path))
 
 if (
     "including_default_value_fields"

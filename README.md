@@ -402,6 +402,71 @@ Optional env var:
 
 - `DISCRAWL_BIN` - custom path to discrawl executable. This overrides the default Microck fork lookup.
 
+### sending files
+
+`send_message` and `send_thread_message` accept `file_paths`, an array of absolute paths to local files, so a
+model can hand back a generated spreadsheet, image or log alongside its reply. Uploads are **off until you
+enable them**: set `UPLOAD_DIRS` first, or every request that includes `file_paths` is refused. Plain text
+sends are unaffected.
+
+```
+UPLOAD_DIRS=/tmp/uploads:/srv/reports
+```
+
+```json
+{
+  "channel_id": "123456789012345678",
+  "content": "here is the report",
+  "file_paths": ["/tmp/uploads/report.xlsx", "/tmp/uploads/chart.png"]
+}
+```
+
+Notes:
+
+- paths are read from the machine running the server, so they must be absolute and reachable by it
+- pass an empty `content` with at least one file to send attachments only; it is sent as an explicit null
+  rather than an empty string, which is how the library represents a caption-less message. Whitespace counts
+  as content and is sent exactly as given
+- `file_paths` composes with `reply_to_message_id` on `send_message`, so a reply can carry files
+- a bad path in the list sends nothing at all: every path is checked before the first file is read
+- at most 10 files per message, matching Discord's own limit
+- a file may be at most `MAX_UPLOAD_BYTES`, and the files on one message may total at most
+  `MAX_UPLOAD_TOTAL_BYTES` (both inclusive). The defaults (8 MiB and 20 MiB) are deliberately conservative:
+  Discord's real per-file ceiling depends on your Nitro tier and the target server's boost level, and its
+  Create Message request is capped at 25 MiB including multipart overhead. Raising the local limits lets you
+  use a channel that accepts more, but cannot raise Discord's own ceiling
+- the limits apply to the bytes actually read, so a file that grows while it is being sent cannot exceed them
+- a successful result reports what was attached. when Discord renames a file, which it does when the
+  name collides with one already on the message, the result reports the name it kept. for example
+  `Message sent to 123456789012345678 (message_id=987) with 2 attachments: report.xlsx, chart.png`
+
+#### why uploads need to be enabled
+
+`UPLOAD_DIRS` grants callers permission to publish readable files in the named directory trees. Set it
+in the server environment or the Python installation's own `.env`. A project's working-directory `.env` cannot
+grant upload access. Use fully qualified directory names and separate them with `:` on POSIX or `;` on
+Windows. Uploads are disabled by default. Local roots must exist.
+
+Paths are resolved through symlinks before the containment check and re-resolved immediately before the file
+is opened, so a `..` or a link placed inside an allowed directory cannot reach outside it. Each file is then
+read into memory, bounded by the size limits, and handed to Discord from that buffer, so no file descriptor is
+held open for the duration of the upload. Up to two attachment batches can be in flight per server
+process. Each takes its message rate-limit slot after the read, immediately before sending.
+
+`UPLOAD_DIRS` can also name a Windows network share such as `\\fileserv\reports`. UNC paths are checked
+as written before accessing the share. A bare server, UNC components ending in a period or space, Windows
+device prefixes and drive-relative paths are refused. A drive-qualified path on a mapped drive or behind
+a network-backed junction can still contact a server during local path resolution. File checks and reads
+run on worker threads so an offline share can delay the upload while the Discord gateway keeps running.
+
+Name only shares you control. Opening a file on an approved share follows links and reparse points there,
+including any that lead outside the configured tree.
+
+This is a permission boundary, not a sandbox. Whoever sets `UPLOAD_DIRS` is trusted, and the directory should
+be writable only by people who are: a local process able to rename a checked directory in the instant before
+it is opened could still redirect a read, and on Windows a case-sensitive directory can make two roots that
+differ only by case distinct while the comparison folds them together.
+
 ### attachment access
 
 Use `get_message_attachments` when a message contains files or images you need to inspect directly.
@@ -505,6 +570,8 @@ discord_py_self_mcp/
 ├── rate_limiter.py
 ├── tool_utils.py
 ├── cli_runtime.py
+├── file_utils.py
+├── path_rules.py
 ├── logging_utils.py
 ├── captcha/
 │   └── solver.py
@@ -552,6 +619,7 @@ python3 scripts/dcli.py send-message --channel 123 --content "Hello!"
 python3 scripts/dcli.py daemon start     # start the daemon
 python3 scripts/dcli.py daemon status    # check daemon status
 python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "Hello"
+python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "Report" --file /tmp/uploads/report.xlsx
 python3 scripts/dcli.py list-guilds
 python3 scripts/dcli.py read-messages --channel CHANNEL_ID --limit 20
 python3 scripts/dcli.py get-message-attachments --channel CHANNEL_ID --message MESSAGE_ID

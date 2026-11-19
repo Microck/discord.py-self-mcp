@@ -23,6 +23,14 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+try:
+    from discord_py_self_mcp.file_utils import UploadError, load_runtime_dotenv, send_with_files
+except ModuleNotFoundError as exc:
+    if exc.name != "discord_py_self_mcp.file_utils":
+        raise
+    # npm scripts may run alongside an older Python package.
+    send_with_files = None
+
 env_paths = [
     PROJECT_ROOT / ".env",
     Path.cwd() / ".env",
@@ -30,9 +38,12 @@ env_paths = [
 
 for env_path in env_paths:
     if env_path.exists():
-        from dotenv import load_dotenv
+        if send_with_files is None:
+            from dotenv import load_dotenv
 
-        load_dotenv(env_path)
+            load_dotenv(env_path)
+        else:
+            load_runtime_dotenv(env_path)
         break
 
 import discord
@@ -48,6 +59,7 @@ from discord_py_self_mcp.cli_runtime import (
 from discord_py_self_mcp.logging_utils import log_to_stderr
 from discord_py_self_mcp.tool_utils import (
     NON_MESSAGEABLE_TEXT,
+    apply_rate_limit,
     build_reply_kwargs,
     validate_message_content,
 )
@@ -56,6 +68,49 @@ from discord_py_self_mcp.tools.embed import serialize_attachment, serialize_mess
 DAEMON_SCRIPT = SCRIPT_DIR / "daemon.py"
 CHECK_INTERVAL = 2
 MAX_ATTACHMENT_BYTES_DEFAULT = 10 * 1024 * 1024
+# Ten maximum-length Windows paths can approach 4 MiB after JSON escaping.
+MAX_REQUEST_BYTES = 4 * 1024 * 1024
+
+
+async def read_command(reader):
+    try:
+        return await asyncio.wait_for(_read_json_request(reader), 10)
+    except asyncio.TimeoutError as exc:
+        raise ValueError("Timed out waiting for the daemon request") from exc
+
+
+async def _read_json_request(reader):
+    """Read one UTF-8 JSON object, including from clients that keep the stream open."""
+    data = bytearray()
+    depth = 0
+    in_string = False
+    escaped = False
+    while True:
+        chunk = await reader.read(min(65536, MAX_REQUEST_BYTES + 1 - len(data)))
+        if not chunk:
+            return json.loads(data) if data else None
+        data.extend(chunk)
+        if len(data) > MAX_REQUEST_BYTES:
+            raise ValueError("Daemon request exceeds the size limit")
+
+        # Locate the end once, even across splits inside strings and escapes.
+        # json.loads validates the complete request, including trailing data.
+        for byte in chunk:
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif byte == ord("\\"):
+                    escaped = True
+                elif byte == ord('"'):
+                    in_string = False
+            elif byte == ord('"'):
+                in_string = True
+            elif byte in b"{[":
+                depth += 1
+            elif byte in b"}]":
+                depth -= 1
+                if depth <= 0:
+                    return json.loads(data)
 
 
 def _safe_unlink(path: Path) -> None:
@@ -206,6 +261,12 @@ class DiscordDaemon:
                     args.get("channel_id"), args.get("limit", 10), args.get("after")
                 )
             if cmd == "send_message":
+                if args.get("file_paths"):
+                    # refuse rather than post the caption and drop the files
+                    return {
+                        "error": "send_message does not accept file_paths; use "
+                        "send_message_with_files"
+                    }
                 return await self._send_message(
                     args.get("channel_id"),
                     args.get("content"),
@@ -266,6 +327,24 @@ class DiscordDaemon:
                     args.get("message_id"),
                     args.get("content"),
                 )
+            if cmd == "send_message_with_files":
+                # separate command on purpose: a daemon from before file support
+                # rejects this outright instead of posting the caption alone
+                if send_with_files is None:
+                    return {
+                        "error": "file attachments are unavailable: the daemon is "
+                        "newer than the installed discord_py_self_mcp package. "
+                        "Upgrade the Python package to send files."
+                    }
+                file_paths = args.get("file_paths")
+                if not file_paths:
+                    return {"error": "send_message_with_files requires file_paths"}
+                return await self._send_message(
+                    args.get("channel_id"),
+                    args.get("content"),
+                    args.get("reply_to_message_id"),
+                    file_paths,
+                )
             return {"error": f"Unknown command: {cmd}"}
         except Exception as exc:
             return {"error": str(exc)}
@@ -319,7 +398,7 @@ class DiscordDaemon:
         messages.reverse()
         return {"messages": messages}
 
-    async def _send_message(self, channel_id, content, reply_to_message_id=None):
+    async def _send_message(self, channel_id, content, reply_to_message_id=None, file_paths=None):
         content_error = validate_message_content(content or "")
         if content_error:
             return {"error": content_error}
@@ -333,8 +412,23 @@ class DiscordDaemon:
             return {"error": NON_MESSAGEABLE_TEXT}
 
         send_kwargs = build_reply_kwargs(reply_to_message_id, channel_id)
-        message = await channel.send(content, **send_kwargs)
-        return {"message_id": message.id, "success": True}
+        if file_paths is None:
+            message = await channel.send(content, **send_kwargs)
+            return {"message_id": message.id, "success": True}
+
+        try:
+            message, files = await send_with_files(
+                channel, content, file_paths, send_kwargs, apply_rate_limit
+            )
+        except UploadError as exc:
+            return {"error": str(exc)}
+
+        landed = getattr(message, "attachments", None)
+        return {
+            "message_id": message.id,
+            "success": True,
+            "attachments": [item.filename for item in (files if landed is None else landed)],
+        }
 
     async def _get_message_attachments(
         self,
@@ -691,11 +785,9 @@ class DiscordDaemon:
     async def handle_client(self, reader, writer):
         """Handle incoming client connections."""
         try:
-            data = await reader.read(65536)
-            if not data:
+            command_data = await read_command(reader)
+            if command_data is None:
                 return
-
-            command_data = json.loads(data.decode())
             provided_auth = str(command_data.pop("auth", ""))
             if not compare_digest(provided_auth, self.auth_token):
                 response = {"error": "Unauthorized daemon request"}
