@@ -92,7 +92,7 @@ class FakeChannel(FakeMessageable):
     def __init__(self, *, messages_list=None, fetched_message=None, sent_message=None):
         self._messages = messages_list or []
         self._fetched_message = fetched_message
-        self._sent_message = sent_message or FakeMessage(message_id=999)
+        self._sent_message = sent_message
         self.last_history_limit = None
         self.sent_content = None
         self.sent_kwargs = None
@@ -108,7 +108,9 @@ class FakeChannel(FakeMessageable):
     async def send(self, content, **kwargs):
         self.sent_content = content
         self.sent_kwargs = kwargs
-        return self._sent_message
+        return self._sent_message or FakeMessage(
+            message_id=999, attachments=kwargs.get("files", [])
+        )
 
 
 class FakeClient:
@@ -307,3 +309,309 @@ async def test_search_messages_applies_rate_limit_and_caps_fetch_window(monkeypa
     assert rate_limit_calls == ["action"]
     assert fake_channel.last_history_limit == 300
     assert "message_id=" in result[0].text
+
+
+@pytest.fixture(autouse=True)
+def _allow_uploads(tmp_path, monkeypatch):
+    """File uploads are refused unless UPLOAD_DIRS names a directory, so tests
+    that attach files need one. Tests for the gate itself override it."""
+    root = tmp_path / "uploads"
+    root.mkdir(exist_ok=True)
+    monkeypatch.setenv("UPLOAD_DIRS", str(root))
+    return root
+
+
+def write_upload(tmp_path, name="bill-of-materials.xlsx", content=b"sheet"):
+    root = tmp_path / "uploads"
+    root.mkdir(exist_ok=True)
+    path = root / name
+    path.write_bytes(content)
+    return str(path)
+
+
+@pytest.mark.asyncio
+async def test_send_message_attaches_files(monkeypatch, tmp_path):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {
+            "channel_id": "1",
+            "content": "here you go",
+            "file_paths": [write_upload(tmp_path)],
+        }
+    )
+
+    assert fake_channel.sent_content == "here you go"
+    files = fake_channel.sent_kwargs.get("files")
+    assert [f.filename for f in files] == ["bill-of-materials.xlsx"]
+    assert "message_id=999" in result[0].text
+    assert "with 1 attachment: bill-of-materials.xlsx" in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_send_message_reports_the_name_discord_kept(monkeypatch, tmp_path):
+    # Discord renames an upload that collides with one already on the message, so
+    # the result has to name what landed rather than what was asked for
+    landed = FakeMessage(
+        message_id=999, attachments=[FakeAttachment(filename="bill (1).xlsx")]
+    )
+    fake_channel = FakeChannel(sent_message=landed)
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {
+            "channel_id": "1",
+            "content": "again",
+            "file_paths": [write_upload(tmp_path)],
+        }
+    )
+
+    assert [f.filename for f in fake_channel.sent_kwargs["files"]] == [
+        "bill-of-materials.xlsx"
+    ]
+    assert "with 1 attachment: bill (1).xlsx" in result[0].text
+    assert "bill-of-materials.xlsx" not in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_send_message_without_files_omits_files_kwarg(monkeypatch):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    await messages.send_message({"channel_id": "1", "content": "hi"})
+
+    assert "files" not in fake_channel.sent_kwargs
+
+
+@pytest.mark.asyncio
+async def test_send_message_with_files_turns_empty_caption_into_none(
+    monkeypatch, tmp_path
+):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "", "file_paths": [write_upload(tmp_path)]}
+    )
+
+    # an attachment-only send must omit the field rather than post an empty string
+    assert fake_channel.sent_content is None
+    assert "files" in fake_channel.sent_kwargs
+    assert "Error" not in result[0].text
+
+
+@pytest.mark.asyncio
+async def test_send_message_with_files_preserves_whitespace_caption(
+    monkeypatch, tmp_path
+):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    await messages.send_message(
+        {"channel_id": "1", "content": "  ", "file_paths": [write_upload(tmp_path)]}
+    )
+
+    # whitespace is content the caller asked for, not an empty caption
+    assert fake_channel.sent_content == "  "
+
+
+@pytest.mark.asyncio
+async def test_send_message_keeps_sending_blank_content_without_files(monkeypatch):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message({"channel_id": "1", "content": "   "})
+
+    assert "message_id" in result[0].text
+    assert fake_channel.sent_content == "   "
+
+
+@pytest.mark.asyncio
+async def test_send_message_rejects_missing_file_without_sending(monkeypatch, tmp_path):
+    fake_channel = FakeChannel()
+    rate_limit_calls = []
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        rate_limit_calls.append(action_type)
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    missing = str(tmp_path / "uploads" / "absent.xlsx")
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "oops", "file_paths": [missing]}
+    )
+
+    assert result[0].text == f"File not found: {missing}"
+    assert fake_channel.sent_content is None
+    # the message never happens, so it must not consume the message budget
+    assert rate_limit_calls == []
+
+
+@pytest.mark.asyncio
+async def test_send_message_rejects_oversized_file(monkeypatch, tmp_path):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+    monkeypatch.setenv("MAX_UPLOAD_BYTES", "4")
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    path = write_upload(tmp_path, content=b"definitely more than four bytes")
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "big", "file_paths": [path]}
+    )
+
+    assert "above the 4 byte limit" in result[0].text
+    assert fake_channel.sent_content is None
+
+
+@pytest.mark.asyncio
+async def test_send_message_reports_a_failed_upload(monkeypatch, tmp_path):
+    class ExplodingChannel(FakeMessageable):
+        def __init__(self):
+            self.captured = None
+
+        async def send(self, content, **kwargs):
+            self.captured = kwargs.get("files")
+            raise RuntimeError("upload rejected")
+
+    channel = ExplodingChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "hi", "file_paths": [write_upload(tmp_path)]}
+    )
+
+    assert result[0].text == "Error sending message: upload rejected"
+    assert channel.captured and len(channel.captured) == 1
+
+
+@pytest.mark.asyncio
+async def test_send_message_attaches_files_and_reply_together(monkeypatch, tmp_path):
+    fake_channel = FakeChannel()
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(fake_channel))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    await messages.send_message(
+        {
+            "channel_id": "1",
+            "content": "answering with the file",
+            "reply_to_message_id": "55",
+            "file_paths": [write_upload(tmp_path, "notes.txt")],
+        }
+    )
+
+    reference = fake_channel.sent_kwargs.get("reference")
+    assert reference.message_id == 55
+    assert [f.filename for f in fake_channel.sent_kwargs["files"]] == ["notes.txt"]
+
+
+@pytest.mark.asyncio
+async def test_send_message_opens_nothing_when_channel_lookup_fails(
+    monkeypatch, tmp_path
+):
+    # The destination is resolved before any file is opened, so a doomed send
+    # never holds host files open (and never waits on the limiter holding them).
+    async def unexpected_prepare(*args):
+        pytest.fail("files were prepared before resolving the channel")
+
+    class UnknownChannelClient:
+        def get_channel(self, channel_id):
+            return None
+
+        async def fetch_channel(self, channel_id):
+            return None
+
+    monkeypatch.setattr(messages, "send_with_files", unexpected_prepare)
+    monkeypatch.setattr(messages.discord.abc, "Messageable", FakeMessageable)
+    monkeypatch.setattr(messages, "client", UnknownChannelClient())
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "hi", "file_paths": [write_upload(tmp_path)]}
+    )
+
+    assert result[0].text == "Channel not found"
+
+
+@pytest.mark.asyncio
+async def test_send_message_opens_nothing_when_channel_is_not_messageable(
+    monkeypatch, tmp_path
+):
+    async def unexpected_prepare(*args):
+        pytest.fail("files were prepared before checking the channel type")
+
+    class NotMessageable:
+        pass
+
+    monkeypatch.setattr(messages, "send_with_files", unexpected_prepare)
+    monkeypatch.setattr(messages.discord.abc, "Messageable", NotMessageable)
+    monkeypatch.setattr(messages, "client", FakeClient(FakeChannel()))
+
+    async def fake_apply_rate_limit(action_type):
+        return None
+
+    monkeypatch.setattr(messages, "apply_rate_limit", fake_apply_rate_limit)
+
+    result = await messages.send_message(
+        {"channel_id": "1", "content": "hi", "file_paths": [write_upload(tmp_path)]}
+    )
+
+    assert result[0].text == messages.NON_MESSAGEABLE_TEXT

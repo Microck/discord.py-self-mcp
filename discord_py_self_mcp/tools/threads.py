@@ -3,6 +3,7 @@ from mcp.types import TextContent
 
 from ..bot import client
 from ..tool_utils import apply_rate_limit, validate_message_content
+from ..file_utils import UploadError, format_sent_summary, send_with_files
 from .registry import registry
 from .embed import format_message_line
 
@@ -175,12 +176,22 @@ async def list_active_threads(arguments: dict):
 
 @registry.register(
     name="send_thread_message",
-    description="Send a message to a thread",
+    description=(
+        "Send a message to a thread, optionally attaching local files. "
+        "Content may be empty when at least one file is attached."
+    ),
     input_schema={
         "type": "object",
         "properties": {
             "thread_id": {"type": "string"},
-            "content": {"type": "string"}
+            "content": {"type": "string"},
+            "file_paths": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Absolute paths of local files to attach to the message"
+                ),
+            },
         },
         "required": ["thread_id", "content"]
     }
@@ -192,7 +203,7 @@ async def send_thread_message(arguments: dict):
         content_error = validate_message_content(content)
         if content_error:
             return [TextContent(type="text", text=content_error)]
-        
+
         thread = client.get_channel(thread_id)
         if not thread:
             try:
@@ -205,8 +216,14 @@ async def send_thread_message(arguments: dict):
         if not isinstance(thread, discord.Thread):
             return [TextContent(type="text", text=f"Channel {thread_id} is not a thread")]
         
-        await apply_rate_limit("message")
-        message = await thread.send(content)
-        return [TextContent(type="text", text=f"Message sent to thread (message_id={message.id})")]
+        message, files = await send_with_files(
+            thread, content, arguments.get("file_paths"), {}, apply_rate_limit
+        )
+        return [TextContent(type="text", text=(
+            f"Message sent to thread (message_id={message.id})"
+            f"{format_sent_summary(message, files)}"
+        ))]
+    except UploadError as exc:
+        return [TextContent(type="text", text=str(exc))]
     except Exception as e:
         return [TextContent(type="text", text=f"Error sending message to thread: {str(e)}")]

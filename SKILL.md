@@ -109,6 +109,13 @@ python3 scripts/dcli.py daemon restart
 #### Send Message
 ```bash
 python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "Hello World"
+
+# Attach local files (repeat --file for more than one; up to 10 per message).
+# Requires UPLOAD_DIRS to be set in .env to a directory the file is inside.
+python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "Here is the report" --file /tmp/uploads/report.xlsx
+
+# Multiple attachments, or files only (pass an empty --content)
+python3 scripts/dcli.py send-message --channel CHANNEL_ID --content "" --file /tmp/uploads/a.png --file /tmp/uploads/b.pdf
 ```
 
 #### Delete Message

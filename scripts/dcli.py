@@ -4,7 +4,7 @@ Usage: python3 dcli.py <command> [args]
 
 Commands:
   daemon <start|stop|restart|status>  - Manage daemon process
-  send-message --channel ID --content "msg" [--reply-to MESSAGE_ID]
+  send-message --channel ID --content "msg" [--reply-to MESSAGE_ID] [--file PATH ...]
   read-messages --channel ID [--limit N] [--after TIME]
   get-message-attachments --channel ID --message ID [--attachment-index N] [--download --output-dir DIR]
   list-guilds
@@ -44,6 +44,17 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from discord_py_self_mcp.cli_runtime import AUTH_FILE, PID_FILE, SOCKET_PATH
+
+# npm ships scripts/dcli.py on its own, so this file has to keep working against a
+# Python package that predates it. path_rules carries no third-party imports, so
+# when it is there we use it; when it is not, every command that does not attach a
+# file still runs, and the server applies the same rule to the ones that do.
+try:
+    from discord_py_self_mcp.path_rules import path_qualification_error
+except ModuleNotFoundError as exc:
+    if exc.name != "discord_py_self_mcp.path_rules":
+        raise
+    path_qualification_error = None
 
 
 def read_pid() -> int | None:
@@ -127,6 +138,8 @@ def send_request(command_data, timeout=30):
         return json.loads(response.decode())
     except socket.timeout:
         print("Error: Request timed out")
+        if command_data.get("command") == "send_message_with_files":
+            print("Check the channel before retrying. The upload may have completed.")
         sys.exit(1)
     except Exception as exc:
         print(f"Error communicating with daemon: {exc}")
@@ -244,20 +257,97 @@ def cmd_get_message_attachments(
         print(f"  {destination}")
 
 
-def cmd_send_message(channel_id, content, reply_to_message_id=None):
-    args = {"channel_id": channel_id, "content": content}
+# Uploading files can outlast the default request window, and a timeout on an
+# upload does not mean the message was not posted.
+UPLOAD_TIMEOUT_SECONDS = 180
+
+
+def absolutise_upload_path(path):
+    """Make a CLI-supplied path absolute without rewriting its components.
+
+    abspath() collapses "..", which can change which file is meant when a leading
+    component is a directory symlink, so only a relative path gets the caller's
+    working directory prepended. The server requires absolute paths and the daemon
+    may run in a different working directory, hence resolving here.
+
+    On Windows two spellings look absolute but are not: one anchored to a drive
+    without naming it ("\\notes.txt") and one naming a drive without being rooted
+    ("D:notes.txt"). Both resolve against whichever drive the daemon happens to be
+    on, so they are refused rather than guessed.
+    """
+    if not path:
+        raise ValueError("empty path")
+
+    # the same rule the server applies, so the CLI never sends a path the daemon
+    # would refuse for a reason the caller cannot see from here. An older package
+    # without path_rules simply skips this: the server still refuses the path, and
+    # the daemon from that package does not accept attachments at all.
+    if path_qualification_error is not None:
+        qualification_error = path_qualification_error(path)
+        if qualification_error:
+            raise ValueError(qualification_error)
+
+    if os.path.isabs(path):
+        return path
+    return os.path.join(os.getcwd(), path)
+
+
+def cmd_send_message(channel_id, content, reply_to_message_id=None, file_paths=None):
+    if not file_paths:
+        args = {"channel_id": channel_id, "content": content}
+        if reply_to_message_id is not None:
+            args["reply_to_message_id"] = reply_to_message_id
+        result = send_request({"command": "send_message", "args": args})
+        _report_send(result)
+        return
+
+    try:
+        resolved = [absolutise_upload_path(path) for path in file_paths]
+    except ValueError as exc:
+        # absolutise_upload_path distinguishes an empty path from one that is
+        # ambiguous on this platform, so report which one it was
+        message = str(exc)
+        if message == "empty path":
+            message = "--file requires a non-empty path"
+        print(f"Error: {message}")
+        sys.exit(1)
+
+    args = {
+        "channel_id": channel_id,
+        "content": content,
+        "file_paths": resolved,
+    }
     if reply_to_message_id is not None:
         args["reply_to_message_id"] = reply_to_message_id
-    result = send_request(
-        {
-            "command": "send_message",
-            "args": args,
-        }
-    )
+
+    # A dedicated command, which doubles as the capability check: a daemon from
+    # before file support rejects it outright instead of posting the caption and
+    # dropping every attachment.
+    request = {"command": "send_message_with_files", "args": args}
+    result = send_request(request, UPLOAD_TIMEOUT_SECONDS)
+    if "error" in result:
+        if result["error"] == "Unknown command: send_message_with_files":
+            print(
+                "Error: the running daemon does not support file attachments.\n"
+                "Restart it (python3 scripts/dcli.py daemon restart) after upgrading "
+                "the discord-py-self-mcp Python package."
+            )
+            sys.exit(1)
+        print(f"Error: {result['error']}")
+        sys.exit(1)
+    _report_send(result)
+
+
+def _report_send(result):
     if "error" in result:
         print(f"Error: {result['error']}")
         return
     print(f"Message sent (ID: {result.get('message_id')})")
+    attachments = result.get("attachments")
+    if attachments:
+        print(f"Attachments ({len(attachments)}): " + ", ".join(attachments))
+    elif attachments == []:
+        print("Discord reported no attachments.")
 
 
 def cmd_read_messages(channel_id, limit, after=None):
@@ -556,8 +646,21 @@ def main():
 
     send_parser = subparsers.add_parser("send-message", help="Send a message")
     send_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
-    send_parser.add_argument("--content", "-m", required=True, help="Message content")
+    send_parser.add_argument(
+        "--content",
+        "-m",
+        required=True,
+        help="Message content (pass an empty string to send files only)",
+    )
     send_parser.add_argument("--reply-to", "-r", type=int, default=None, help="Message ID to reply to")
+    send_parser.add_argument(
+        "--file",
+        "-f",
+        action="append",
+        dest="files",
+        metavar="PATH",
+        help="Attach a local file; repeat for multiple attachments",
+    )
 
     read_parser = subparsers.add_parser("read-messages", help="Read messages from channel")
     read_parser.add_argument("--channel", "-c", required=True, type=int, help="Channel ID")
@@ -639,7 +742,7 @@ def main():
     if args.command == "daemon":
         cmd_daemon(args.action)
     elif args.command == "send-message":
-        cmd_send_message(args.channel, args.content, args.reply_to)
+        cmd_send_message(args.channel, args.content, args.reply_to, args.files)
     elif args.command == "read-messages":
         cmd_read_messages(args.channel, args.limit, args.after)
     elif args.command == "get-message-attachments":
