@@ -46,10 +46,11 @@ class UploadError(Exception):
     """A request was refused; its message is returned to the caller."""
 
 
-def load_runtime_dotenv(path, trusted_path):
+def load_runtime_dotenv(path):
     """Only the inherited environment and the installation's .env may grant uploads."""
-    if path == trusted_path:
-        load_dotenv(path)
+    python_env = Path(__file__).resolve().parents[1] / ".env"
+    if str(path) == str(python_env):
+        load_dotenv(python_env)
         return
 
     # The npm scripts and Python package can live in separate directories.
@@ -57,7 +58,6 @@ def load_runtime_dotenv(path, trusted_path):
     # the launch directory's variables, including interpolation inputs.
     if os.getenv("PYTHON_DOTENV_DISABLED", "").casefold() in {"1", "true", "t", "yes", "y"}:
         return
-    python_env = Path(__file__).resolve().parents[1] / ".env"
     upload_keys = {"UPLOAD_DIRS", "MAX_UPLOAD_BYTES", "MAX_UPLOAD_TOTAL_BYTES"}
     for source, uploads_only in ((python_env, True), (path, False)):
         if not source.is_file():
@@ -99,7 +99,7 @@ def _upload_roots() -> list[str]:
         if path_rules._is_unc_path(entry):
             # resolving a UNC root would contact that server on every request, so
             # an operator-named share is trusted as written instead of probed
-            if path_rules._has_dotdot(entry):
+            if path_rules._has_ambiguous_unc_component(entry):
                 continue
             if not path_rules._is_unc_root_of_at_least_a_share(entry):
                 # a bare server would authorise every share on it
@@ -129,6 +129,12 @@ def _is_regular(handle) -> bool:
     return stat.S_ISREG(os.fstat(handle.fileno()).st_mode)
 
 
+def _open_upload_fd(path, flags):
+    # A special file can replace the checked path before open. On POSIX a FIFO
+    # must open without waiting for a writer so fstat can reject it promptly.
+    return os.open(path, flags | getattr(os, "O_NONBLOCK", 0))
+
+
 def normalize_file_paths(file_paths) -> list[str]:
     """Accept one path or a list of paths and return them unchanged.
 
@@ -155,6 +161,28 @@ def normalize_file_paths(file_paths) -> list[str]:
     return paths
 
 
+def _missing_in_upload_dir(path: str, roots: list[str]) -> bool:
+    """Report a missing leaf only after confirming its parent is authorized."""
+    parent, name = os.path.split(path)
+    if name in ("", ".", "..") or os.path.splitdrive(name)[0]:
+        return False
+    try:
+        parent = _realpath(parent, strict=True)
+    except (OSError, ValueError):
+        return False
+    if not any(path_rules._is_within(parent, root) for root in roots):
+        return False
+    # A dangling symlink exists as a directory entry. Keep the state of its
+    # unresolved target private.
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return True
+    except (OSError, ValueError):
+        pass
+    return False
+
+
 def _resolve_for_upload(path: str, roots: list[str]) -> tuple[str | None, str | None]:
     """Resolve a caller path for reading, or explain why it may not be read.
 
@@ -172,15 +200,16 @@ def _resolve_for_upload(path: str, roots: list[str]) -> tuple[str | None, str | 
     try:
         resolved = _realpath(path, strict=True)
     except FileNotFoundError:
-        return None, f"File not found: {path}"
+        if _missing_in_upload_dir(path, roots):
+            return None, f"File not found: {path}"
     except (OSError, ValueError):
-        return None, f"Cannot resolve file: {path}"
-    for root in roots:
-        if path_rules._is_within(resolved, root):
+        pass
+    else:
+        if any(path_rules._is_within(resolved, root) for root in roots):
             return resolved, None
     return None, (
-        f"File {path} is outside the directories this server may upload from. "
-        "Add its directory to UPLOAD_DIRS."
+        f"File {path} is unavailable or outside the directories this server may upload from. "
+        "Check the path and UPLOAD_DIRS."
     )
 
 
@@ -312,7 +341,7 @@ def build_files(file_paths) -> tuple[list, str | None]:
                 raise UploadError(error)
 
             try:
-                with open(resolved, "rb") as handle:
+                with open(resolved, "rb", opener=_open_upload_fd) as handle:
                     if not _is_regular(handle):
                         raise UploadError(f"Not a regular file: {path}")
                     # read one byte past the cap so an oversized file is detected

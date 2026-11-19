@@ -16,7 +16,7 @@ from discord_py_self_mcp import modal_store
 
 _env_path = find_dotenv()
 if _env_path:
-    load_runtime_dotenv(Path(_env_path), Path(__file__).resolve().parents[1] / ".env")
+    load_runtime_dotenv(Path(_env_path))
 
 if (
     "including_default_value_fields"

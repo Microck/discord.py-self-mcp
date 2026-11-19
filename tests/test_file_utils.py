@@ -170,7 +170,21 @@ class TestContainment:
 
     def test_file_outside_allowed_root_is_rejected(self, tmp_path, uploads_enabled):
         path = make_file(tmp_path)
-        assert "outside the directories" in file_utils.validate_file_paths([path])
+        refusal = file_utils.validate_file_paths([path])
+        assert "outside the directories" in refusal
+        os.unlink(path)
+        assert file_utils.validate_file_paths([path]) == refusal
+
+    @pytest.mark.skipif(os.name != "nt", reason="Windows drive-qualified names")
+    def test_missing_diagnostic_skips_drive_qualified_leaf(self, upload_dir, monkeypatch):
+        def unexpected_lookup(*args, **kwargs):
+            pytest.fail("a drive-qualified leaf was used for a missing-file lookup")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(file_utils, "_realpath", unexpected_lookup)
+            patch.setattr(os, "lstat", unexpected_lookup)
+            path = str(upload_dir) + "\\D:report.txt"
+            assert not file_utils._missing_in_upload_dir(path, [str(upload_dir)])
 
     def test_dotdot_traversal_is_rejected(self, tmp_path, uploads_enabled):
         # the ".." must reach production un-normalised, otherwise the test proves
@@ -254,9 +268,9 @@ async def test_slow_upload_io_allows_event_loop_to_run(monkeypatch, upload_dir):
         heartbeat("validate")
         return validate(paths)
 
-    def slow_open(*args):
+    def slow_open(*args, **kwargs):
         heartbeat("read")
-        return io.open(*args)
+        return io.open(*args, **kwargs)
 
     async def rate_limit(action):
         assert asyncio.get_running_loop() is loop
@@ -282,11 +296,11 @@ async def test_concurrent_uploads_take_the_rate_slot_at_send(monkeypatch, upload
     release = threading.Event()
     sends = []
 
-    def delayed_open(path, mode):
+    def delayed_open(path, mode, **kwargs):
         if path == slow:
             loop.call_soon_threadsafe(reading.set)
             assert release.wait(5)
-        return io.open(path, mode)
+        return io.open(path, mode, **kwargs)
 
     async def send(content, **kwargs):
         sends.append((content, loop.time()))
@@ -336,10 +350,27 @@ def test_incomplete_resolution_refuses_to_open(monkeypatch, upload_dir):
 
     monkeypatch.setattr(file_utils, "_realpath", failing_resolution)
     monkeypatch.setattr(file_utils, "open", lambda *args: pytest.fail("opened"), raising=False)
-    assert file_utils.build_files([path]) == ([], f"Cannot resolve file: {path}")
+    files, error = file_utils.build_files([path])
+    assert not files and "unavailable or outside the directories" in error
 
 
 class TestBuildFiles:
+    @pytest.mark.skipif(not hasattr(os, "O_NONBLOCK"), reason="POSIX open flags")
+    def test_opens_nonblocking_before_checking_file_type(self, monkeypatch, upload_dir):
+        path = make_file(upload_dir)
+        original = os.open
+        flags_seen = []
+
+        def record_open(name, flags):
+            flags_seen.append(flags)
+            return original(name, flags)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(os, "open", record_open)
+            files, error = file_utils.build_files([path])
+        assert error is None and files
+        assert len(flags_seen) == 1 and flags_seen[0] & os.O_NONBLOCK
+
     def test_no_paths_returns_no_files_and_no_error(self):
         files, error = file_utils.build_files(None)
         assert files == []
@@ -789,8 +820,9 @@ class TestUncIntegration:
         monkeypatch.setenv("UPLOAD_DIRS", self.SHARE)
         assert file_utils._upload_roots() == [self.SHARE]
 
-    def test_a_share_root_containing_dotdot_is_dropped(self, monkeypatch, windows_rules, no_resolution):
-        monkeypatch.setenv("UPLOAD_DIRS", self.SHARE + "\\..\\everything")
+    @pytest.mark.parametrize("component", ["..", ".. ", "reports.", "reports "])
+    def test_ambiguous_share_root_is_dropped(self, monkeypatch, windows_rules, no_resolution, component):
+        monkeypatch.setenv("UPLOAD_DIRS", self.SHARE + "\\" + component + "\\reports")
         assert file_utils._upload_roots() == []
 
     def test_a_bare_server_is_not_accepted_as_a_root(self, monkeypatch, windows_rules, no_resolution):

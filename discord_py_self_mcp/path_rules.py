@@ -79,12 +79,9 @@ def _unc_as_written(path: str) -> str:
     return path.replace("/", "\\")
 
 
-def _has_dotdot(path: str) -> bool:
-    """True when a path carries a literal parent-directory component.
-
-    Only a whole component counts, so a share named ``reports..archive`` survives.
-    """
-    return ".." in path.replace("/", "\\").split("\\")
+def _has_ambiguous_unc_component(path: str) -> bool:
+    """Win32 can interpret trailing periods and spaces differently from a lexical check."""
+    return any(part.endswith((".", " ")) for part in _unc_parts(path))
 
 
 def _unc_parts(path: str) -> list[str]:
@@ -195,10 +192,10 @@ def check_unc_confinement(path: str, roots: list[str]) -> str | None:
     not followed and checked. A configured share is therefore trusted to hold no
     pointer that leaves it.
     """
-    if _has_dotdot(path):
+    if _has_ambiguous_unc_component(path):
         return (
-            f"UNC path {path} must not contain '..'; name the file directly "
-            "inside an allowed upload share."
+            f"UNC path {path} contains a component ending in a period or space "
+            "(including '..'). Name the file directly inside an allowed upload share."
         )
     normalised = _unc_as_written(path)
     for root in roots:

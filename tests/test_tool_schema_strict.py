@@ -42,5 +42,7 @@ def test_send_thread_message_file_paths_is_a_plain_string_array():
     schema = registry.tools["send_thread_message"].inputSchema
 
     assert not [n for n in _walk(schema) if "anyOf" in n]
-    assert schema["properties"]["file_paths"]["items"] == {"type": "string"}
+    file_paths = schema["properties"]["file_paths"]
+    assert file_paths["type"] == "array"
+    assert file_paths["items"] == {"type": "string"}
     assert schema["required"] == ["thread_id", "content"]

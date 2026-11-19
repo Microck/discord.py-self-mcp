@@ -419,9 +419,8 @@ async def test_send_message_with_files_turns_empty_caption_into_none(
         {"channel_id": "1", "content": "", "file_paths": [write_upload(tmp_path)]}
     )
 
-    # an attachment-only send must omit the field rather than post an empty string
     assert fake_channel.sent_content is None
-    assert "files" in fake_channel.sent_kwargs
+    assert [f.filename for f in fake_channel.sent_kwargs["files"]] == ["bill-of-materials.xlsx"]
     assert "Error" not in result[0].text
 
 

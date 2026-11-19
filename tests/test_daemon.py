@@ -9,21 +9,23 @@ from scripts import daemon
 @pytest.mark.asyncio
 async def test_reads_fragmented_upload_requests():
     reader = asyncio.StreamReader()
-    request = {"command": "send_message_with_files", "args": {"file_paths": ["/" + "📄" * 8000]}}
-    data = json.dumps(request).encode()
-    reader.feed_data(data[:20])
+    request = {"command": "send_message_with_files", "args": {"file_paths": ['/"{file}' + "📄" * 18000]}}
+    data = json.dumps(request, ensure_ascii=False).encode()
+    split = data.index(b"\\") + 1
+    reader.feed_data(data[:split])
     pending = asyncio.create_task(daemon.read_command(reader))
     await asyncio.sleep(0)
-    reader.feed_data(data[20:])
-    reader.feed_eof()
-    assert await pending == request
+    reader.feed_data(data[split:])
+    assert await asyncio.wait_for(pending, 2) == request
 
 
 @pytest.mark.asyncio
 async def test_rejects_requests_over_the_byte_limit(monkeypatch):
     monkeypatch.setattr(daemon, "MAX_REQUEST_BYTES", 100)
     reader = asyncio.StreamReader()
-    reader.feed_data(json.dumps({"content": "x" * 100}).encode())
+    payload = json.dumps({"content": "📄" * 30}, ensure_ascii=False)
+    assert len(payload) <= 100 < len(payload.encode())
+    reader.feed_data(payload.encode())
     reader.feed_eof()
     with pytest.raises(ValueError, match="size limit"):
         await daemon.read_command(reader)
@@ -193,6 +195,7 @@ async def test_daemon_attachment_send_blank_caption(monkeypatch, _allow_uploads)
 
     assert result["success"] is True
     assert channel.sent_content is None
+    assert [f.filename for f in channel.sent_kwargs["files"]] == ["photo.png"]
 
 
 @pytest.mark.asyncio

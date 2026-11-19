@@ -120,9 +120,10 @@ class TestUncDetection:
         assert error is not None
         assert "outside the directories" in error
 
-    def test_traversal_is_refused_rather_than_resolved(self, as_windows):
+    @pytest.mark.parametrize("component", ["..", ".. ", "report.", "report "])
+    def test_ambiguous_components_are_refused(self, as_windows, component):
         error = path_rules.check_unc_confinement(
-            r"\\fileserv\reports\..\secrets\k.txt", [r"\\fileserv\reports"]
+            rf"\\fileserv\reports\{component}\file.txt", [r"\\fileserv\reports"]
         )
         assert error is not None
         assert "'..'" in error
@@ -137,8 +138,8 @@ class TestUncDetection:
         )
 
     def test_a_share_name_may_contain_double_dots(self, as_windows):
-        assert path_rules._has_dotdot(r"\\fileserv\reports..archive\f.txt") is False
-        assert path_rules._has_dotdot(r"\\fileserv\reports\..\f.txt") is True
+        share = r"\\fileserv\reports..archive"
+        assert path_rules.check_unc_confinement(share + r"\f.txt", [share]) is None
 
 
 class TestUncRootShape:
@@ -210,16 +211,20 @@ class TestNoThirdPartyImports:
 
         blocker = tmp_path / "discord.py"
         blocker.write_text("raise ImportError('discord.py is not installed')\n")
-        dcli = pathlib.Path(path_rules.__file__).parent.parent / "scripts" / "dcli.py"
+        root = pathlib.Path(path_rules.__file__).resolve().parents[1]
 
         result = subprocess.run(
-            [sys.executable, str(dcli), "--help"],
+            [sys.executable, "-c", (
+                "from pathlib import Path\n"
+                "from scripts.dcli import absolutise_upload_path\n"
+                "assert absolutise_upload_path('report.txt') == str(Path.cwd() / 'report.txt')\n"
+            )],
+            cwd=tmp_path,
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(tmp_path)},
+            env={**os.environ, "PYTHONPATH": os.pathsep.join(map(str, (tmp_path, root)))},
         )
         assert result.returncode == 0, result.stderr
-        assert "send-message" in result.stdout
 
 
 class TestWindowsRulesDoNotFollowTheHost:

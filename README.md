@@ -443,7 +443,7 @@ Notes:
 #### why uploads need to be enabled
 
 `UPLOAD_DIRS` grants callers permission to publish readable files in the named directory trees. Set it
-in the server environment or the installation's own `.env`. A project's working-directory `.env` cannot
+in the server environment or the Python installation's own `.env`. A project's working-directory `.env` cannot
 grant upload access. Use fully qualified directory names and separate them with `:` on POSIX or `;` on
 Windows. Uploads are disabled by default. Local roots must exist.
 
@@ -454,7 +454,7 @@ held open for the duration of the upload. Up to two attachment batches can be in
 process. Each takes its message rate-limit slot after the read, immediately before sending.
 
 `UPLOAD_DIRS` can also name a Windows network share such as `\\fileserv\reports`. UNC paths are checked
-as written before accessing the share. A bare server, parent-directory components in UNC paths, Windows
+as written before accessing the share. A bare server, UNC components ending in a period or space, Windows
 device prefixes and drive-relative paths are refused. A drive-qualified path on a mapped drive or behind
 a network-backed junction can still contact a server during local path resolution. File checks and reads
 run on worker threads so an offline share can delay the upload while the Discord gateway keeps running.

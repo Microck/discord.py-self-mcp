@@ -43,7 +43,7 @@ for env_path in env_paths:
 
             load_dotenv(env_path)
         else:
-            load_runtime_dotenv(env_path, PROJECT_ROOT / ".env")
+            load_runtime_dotenv(env_path)
         break
 
 import discord
@@ -73,23 +73,44 @@ MAX_REQUEST_BYTES = 4 * 1024 * 1024
 
 
 async def read_command(reader):
-    first = await reader.read(min(65536, MAX_REQUEST_BYTES + 1))
-    if not first:
-        return None
-    if len(first) > MAX_REQUEST_BYTES:
-        raise ValueError("Daemon request exceeds the size limit")
     try:
-        # Some existing clients leave the stream open after a complete request.
-        return json.loads(first)
-    except ValueError:
-        pass
-    try:
-        await asyncio.wait_for(reader.readexactly(MAX_REQUEST_BYTES - len(first) + 1), 10)
-    except asyncio.IncompleteReadError as exc:
-        return json.loads(first + exc.partial)
-    except asyncio.TimeoutError:
-        raise ValueError("Timed out waiting for the rest of the daemon request")
-    raise ValueError("Daemon request exceeds the size limit")
+        return await asyncio.wait_for(_read_json_request(reader), 10)
+    except asyncio.TimeoutError as exc:
+        raise ValueError("Timed out waiting for the daemon request") from exc
+
+
+async def _read_json_request(reader):
+    """Read one UTF-8 JSON object, including from clients that keep the stream open."""
+    data = bytearray()
+    depth = 0
+    in_string = False
+    escaped = False
+    while True:
+        chunk = await reader.read(min(65536, MAX_REQUEST_BYTES + 1 - len(data)))
+        if not chunk:
+            return json.loads(data) if data else None
+        data.extend(chunk)
+        if len(data) > MAX_REQUEST_BYTES:
+            raise ValueError("Daemon request exceeds the size limit")
+
+        # Locate the end once, even across splits inside strings and escapes.
+        # json.loads validates the complete request, including trailing data.
+        for byte in chunk:
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif byte == ord("\\"):
+                    escaped = True
+                elif byte == ord('"'):
+                    in_string = False
+            elif byte == ord('"'):
+                in_string = True
+            elif byte in b"{[":
+                depth += 1
+            elif byte in b"}]":
+                depth -= 1
+                if depth <= 0:
+                    return json.loads(data)
 
 
 def _safe_unlink(path: Path) -> None:

@@ -61,7 +61,8 @@ def test_packaged_cli_can_inspect_daemon_with_previous_release(packaged_scripts)
 
 
 @pytest.mark.parametrize("source", ["disabled", "installed", "inherited"])
-def test_packaged_daemon_reads_only_trusted_upload_settings(tmp_path, source):
+@pytest.mark.parametrize("dotenv_location", ["cwd", "npm"])
+def test_packaged_daemon_reads_only_trusted_upload_settings(tmp_path, source, dotenv_location):
     scripts = tmp_path / "npm" / "scripts"
     scripts.mkdir(parents=True)
     shutil.copyfile(ROOT / "scripts" / "daemon.py", scripts / "daemon.py")
@@ -78,7 +79,8 @@ def test_packaged_daemon_reads_only_trusted_upload_settings(tmp_path, source):
             "TEST_INSTALL_LIMIT=1024\nMAX_UPLOAD_BYTES=${TEST_INSTALL_LIMIT}\n",
             encoding="utf-8",
         )
-    (tmp_path / ".env").write_text(
+    script_env = (scripts.parent if dotenv_location == "npm" else tmp_path) / ".env"
+    script_env.write_text(
         f"UPLOAD_DIRS='{tmp_path.as_posix()}'\nuPloAd_Dirs='{tmp_path.as_posix()}'\n"
         "MAX_UPLOAD_BYTES=1234\nMax_Upload_Bytes=1234\nMax_Upload_Total_Bytes=2468\n"
         "TEST_INSTALL_LIMIT=5678\nLEGACY_SETTING=yes\n",

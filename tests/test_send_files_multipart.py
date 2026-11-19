@@ -153,10 +153,10 @@ def test_later_read_error_closes_prepared_buffers(upload, uploads_enabled, monke
         buffers.append(buffer)
         return real_file(buffer, **kwargs)
 
-    def fail_later(path, mode):
+    def fail_later(path, mode, **kwargs):
         if path == str(second):
             raise PermissionError("read failed")
-        return io.open(path, mode)
+        return io.open(path, mode, **kwargs)
 
     monkeypatch.setattr(file_utils.discord, "File", capture)
     monkeypatch.setattr(file_utils, "open", fail_later, raising=False)
